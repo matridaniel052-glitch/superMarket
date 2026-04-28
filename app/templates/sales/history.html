@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Sales History — SuperMart IMS{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>Sales history</h1>
+  <p>All completed sales transactions</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="stats">
+  <div class="stat"><div class="stat-label">Total sales</div><div class="stat-value">{{ sales | length }}</div></div>
+  <div class="stat"><div class="stat-label">Total revenue</div><div class="stat-value" style="color:var(--green-mid)">GHS {{ "%.2f" | format(total_revenue) }}</div></div>
+  <div class="stat"><div class="stat-label">Today's sales</div>
+    <div class="stat-value">
+      {% set today_sales = sales | selectattr('sale_date') | list %}
+      {{ sales | length }}
+    </div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div style="font-size:0.875rem;color:var(--muted)">{{ sales | length }} transaction(s) recorded</div>
+  <a href="{{ url_for('sales.new_sale') }}" class="btn btn-green">+ New sale</a>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+  {% if sales %}
+  <table>
+    <thead>
+      <tr>
+        <th>Receipt #</th>
+        <th>Date &amp; time</th>
+        <th>Cashier</th>
+        <th>Items</th>
+        <th>Subtotal</th>
+        <th>Discount</th>
+        <th>Total paid</th>
+        <th>Payment</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in sales %}
+      <tr>
+        <td style="font-family:monospace;font-weight:500">#{{ '%04d' % s.id }}</td>
+        <td style="font-size:0.82rem">{{ s.sale_date.strftime('%d %b %Y, %I:%M %p') }}</td>
+        <td>{{ s.cashier.full_name }}</td>
+        <td><span class="badge badge-gray">{{ s.item_count }} item(s)</span></td>
+        <td>GHS {{ "%.2f" | format(s.total_amount) }}</td>
+        <td>{% if s.discount > 0 %}<span style="color:var(--danger)">- GHS {{ "%.2f" | format(s.discount) }}</span>{% else %}—{% endif %}</td>
+        <td style="font-weight:500;color:var(--green-mid)">GHS {{ "%.2f" | format(s.grand_total) }}</td>
+        <td><span class="badge badge-green">{{ s.payment_method | capitalize }}</span></td>
+        <td>
+          <a href="{{ url_for('sales.receipt', sale_id=s.id) }}" class="btn btn-outline btn-sm">Receipt</a>
+          <form method="POST" action="{{ url_for('sales.delete_sale', sale_id=s.id) }}" style="display:inline"
+                onsubmit="return confirm('Delete sale #{{ s.id }}? This cannot be undone.')">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:3rem;text-align:center;color:#9ca3af;">
+    <div style="font-size:2rem;margin-bottom:0.75rem">🧾</div>
+    <div style="font-weight:500;margin-bottom:0.5rem">No sales recorded yet</div>
+    <div style="font-size:0.85rem"><a href="{{ url_for('sales.new_sale') }}">Process your first sale</a> to see it here.</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

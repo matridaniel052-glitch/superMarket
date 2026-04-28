@@ -1,0 +1,355 @@
+{% extends 'base.html' %}
+{% block title %}New Sale — SuperMart IMS{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>New sale</h1>
+  <p>Click a product or scan a barcode to add it to the cart</p>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pos-grid { display: grid; grid-template-columns: 1fr 370px; gap: 1.5rem; align-items: start; }
+  .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+  .product-card { background: white; border: 1.5px solid var(--border); border-radius: 10px; padding: 0.875rem; cursor: pointer; transition: all 0.15s; }
+  .product-card:hover { border-color: var(--green-accent); background: var(--green-light); }
+  .pname { font-weight: 500; font-size: 0.875rem; color: var(--text); margin-bottom: 4px; }
+  .pprice { font-size: 1rem; font-weight: 600; color: var(--green-mid); }
+  .pstock { font-size: 0.72rem; color: var(--muted); margin-top: 3px; }
+  .cart-box { background: white; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; position: sticky; top: 70px; }
+  .cart-header { background: var(--green-dark); padding: 1rem 1.25rem; display:flex; justify-content:space-between; align-items:center; }
+  .cart-header h2 { font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700; color: white; }
+  .cart-body { padding: 1rem 1.25rem; }
+  .cart-empty { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 2rem 0; }
+  .cart-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+  .cart-item:last-child { border-bottom: none; }
+  .ci-name { flex: 1; font-size: 0.82rem; font-weight: 500; }
+  .ci-qty { width: 48px; padding: 4px 5px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; text-align: center; font-family: 'DM Sans', sans-serif; }
+  .ci-price { font-size: 0.82rem; font-weight: 500; color: var(--green-mid); min-width: 68px; text-align: right; }
+  .ci-rm { background: none; border: none; color: #dc2626; font-size: 1.1rem; cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1; }
+  .ci-rm:hover { background: var(--danger-bg); }
+  .cart-total { border-top: 1.5px solid var(--border); padding-top: 12px; margin-top: 8px; }
+  .crow { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; margin-bottom: 7px; color: var(--muted); }
+  .crow.grand { font-weight: 600; font-size: 1rem; color: var(--text); margin-top: 8px; }
+  .s-input { width: 100%; padding: 9px 13px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.875rem; font-family: 'DM Sans', sans-serif; margin-bottom: 1rem; outline: none; }
+  .s-input:focus { border-color: var(--green-accent); }
+
+  /* Scanner styles */
+  .scan-btn {
+    display:flex; align-items:center; gap:6px;
+    padding:6px 14px; border-radius:8px;
+    background:#fbbf24; color:#78350f;
+    border:none; font-size:0.82rem; font-weight:500;
+    font-family:'DM Sans',sans-serif; cursor:pointer;
+  }
+  .scan-btn:hover { background:#f59e0b; }
+  .scanner-modal {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.75); z-index:999;
+    align-items:center; justify-content:center;
+  }
+  .scanner-modal.open { display:flex; }
+  .scanner-box {
+    background:white; border-radius:16px;
+    padding:1.5rem; width:420px; max-width:95vw;
+  }
+  .scanner-box h3 { font-family:'Syne',sans-serif; font-size:1rem; font-weight:700; margin-bottom:0.5rem; }
+  .scanner-box p { font-size:0.82rem; color:var(--muted); margin-bottom:1rem; }
+  #scanner-viewport { width:100%; border-radius:10px; overflow:hidden; background:#000; position:relative; height:260px; }
+  #scanner-viewport video { width:100%; height:100%; object-fit:cover; }
+  #scanner-viewport canvas { display:none; }
+  .scanner-overlay {
+    position:absolute; inset:0; display:flex;
+    align-items:center; justify-content:center; pointer-events:none;
+  }
+  .scanner-line {
+    width:80%; height:2px; background:#4caf60;
+    box-shadow:0 0 8px #4caf60;
+    animation: scanline 2s ease-in-out infinite;
+  }
+  @keyframes scanline {
+    0%,100% { transform: translateY(-60px); opacity:0.3; }
+    50% { transform: translateY(60px); opacity:1; }
+  }
+  .scan-result {
+    margin-top:0.75rem; padding:10px 14px;
+    border-radius:8px; font-size:0.85rem; font-weight:500;
+    display:none;
+  }
+  .scan-result.found { background:#f0fdf4; color:#15803d; border:1px solid #86efac; display:block; }
+  .scan-result.notfound { background:#fef2f2; color:#dc2626; border:1px solid #fca5a5; display:block; }
+  .manual-barcode { display:flex; gap:8px; margin-top:0.75rem; }
+  .manual-barcode input { flex:1; padding:8px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:0.875rem; font-family:'DM Sans',sans-serif; outline:none; }
+  .manual-barcode input:focus { border-color:var(--green-accent); }
+  .manual-barcode button { padding:8px 16px; border-radius:8px; border:none; background:var(--green-mid); color:white; font-family:'DM Sans',sans-serif; font-size:0.85rem; cursor:pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Scanner Modal -->
+<div class="scanner-modal" id="scannerModal">
+  <div class="scanner-box">
+    <h3>Scan product barcode</h3>
+    <p>Point your camera at the barcode on the product</p>
+    <div id="scanner-viewport">
+      <div class="scanner-overlay"><div class="scanner-line"></div></div>
+    </div>
+    <div class="scan-result" id="scan-result"></div>
+    <div class="manual-barcode" style="margin-top:1rem;">
+      <input type="text" id="manual-input" placeholder="Or type barcode manually..." onkeydown="if(event.key==='Enter') manualScan()">
+      <button onclick="manualScan()">Search</button>
+    </div>
+    <button onclick="closeScanner()" class="btn btn-outline" style="width:100%;margin-top:0.75rem;">Close scanner</button>
+  </div>
+</div>
+
+<div class="pos-grid">
+  <div>
+    <div style="display:flex;gap:8px;margin-bottom:1rem;">
+      <input type="text" class="s-input" id="srch" placeholder="Search products by name..." style="margin-bottom:0;">
+      <button class="scan-btn" onclick="openScanner()">
+        📷 Scan barcode
+      </button>
+    </div>
+    {% if products %}
+    <div class="product-grid" id="pgrid">
+      {% for p in products %}
+      <div class="product-card"
+           data-id="{{ p.id }}"
+           data-name="{{ p.name }}"
+           data-price="{{ p.unit_price }}"
+           data-stock="{{ p.quantity }}"
+           data-barcode="{{ p.barcode or '' }}"
+           onclick="addToCart(this)">
+        <div class="pname">{{ p.name }}</div>
+        <div class="pprice">GHS {{ "%.2f" | format(p.unit_price) }}</div>
+        <div class="pstock">Stock: {{ p.quantity }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center;padding:3rem;color:var(--muted);">
+      No products in stock. <a href="{{ url_for('products.add') }}">Add products first</a>.
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="cart-box">
+    <div class="cart-header">
+      <h2>Shopping cart &nbsp;<span id="ccount" style="font-size:0.8rem;opacity:0.7;"></span></h2>
+    </div>
+    <div class="cart-body">
+      <div id="cempty" class="cart-empty">No items yet. Click a product or scan a barcode.</div>
+      <div id="citems"></div>
+      <div id="ctotal" class="cart-total" style="display:none;">
+        <div class="crow"><span>Subtotal</span><span id="sub">GHS 0.00</span></div>
+        <div class="crow">
+          <span>Discount (GHS)</span>
+          <input type="number" id="disc" min="0" step="0.01" value="0"
+            style="width:78px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-family:'DM Sans',sans-serif;font-size:0.82rem;text-align:right;"
+            oninput="updateTotals()">
+        </div>
+        <div class="crow grand"><span>Total to pay</span><span id="gtot" style="color:var(--green-mid);">GHS 0.00</span></div>
+        <div style="margin-top:12px;">
+          <label style="font-size:0.78rem;font-weight:500;display:block;margin-bottom:4px;">Payment method</label>
+          <select id="paymethod" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.85rem;">
+            <option value="cash">Cash</option>
+            <option value="momo">Mobile Money (MoMo)</option>
+            <option value="card">Card</option>
+          </select>
+        </div>
+        <div id="hidden-inputs"></div>
+        <button type="button" onclick="submitSale()" class="btn btn-green" style="width:100%;margin-top:14px;padding:12px;">
+          Complete sale
+        </button>
+        <button type="button" onclick="clearCart()" class="btn btn-outline" style="width:100%;margin-top:8px;">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<form method="POST" action="{{ url_for('sales.new_sale') }}" id="real-form" style="display:none;">
+  <div id="form-fields"></div>
+</form>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script>
+var cart = {};
+var scanning = false;
+
+/* ── Cart functions ── */
+function addToCart(el) {
+  var id    = el.getAttribute('data-id');
+  var name  = el.getAttribute('data-name');
+  var price = parseFloat(el.getAttribute('data-price'));
+  var stock = parseInt(el.getAttribute('data-stock'));
+  if (cart[id]) {
+    if (cart[id].qty >= stock) { alert('Only ' + stock + ' in stock!'); return; }
+    cart[id].qty++;
+  } else {
+    cart[id] = { name: name, price: price, qty: 1, stock: stock };
+  }
+  render();
+}
+
+function addToCartById(id, name, price, stock) {
+  if (cart[id]) {
+    if (cart[id].qty >= stock) { return false; }
+    cart[id].qty++;
+  } else {
+    cart[id] = { name: name, price: price, qty: 1, stock: stock };
+  }
+  render();
+  return true;
+}
+
+function render() {
+  var keys  = Object.keys(cart);
+  var count = keys.reduce(function(a, k){ return a + cart[k].qty; }, 0);
+  document.getElementById('ccount').textContent = count > 0 ? '(' + count + ' item' + (count>1?'s':'') + ')' : '';
+  if (!keys.length) {
+    document.getElementById('cempty').style.display = 'block';
+    document.getElementById('ctotal').style.display = 'none';
+    document.getElementById('citems').innerHTML = '';
+    return;
+  }
+  document.getElementById('cempty').style.display = 'none';
+  document.getElementById('ctotal').style.display = 'block';
+  var h = '';
+  keys.forEach(function(id) {
+    var it = cart[id];
+    h += '<div class="cart-item"><div class="ci-name">' + it.name + '</div>';
+    h += '<input class="ci-qty" type="number" min="1" max="' + it.stock + '" value="' + it.qty + '" onchange="chqty(\'' + id + '\',this.value)">';
+    h += '<div class="ci-price">GHS ' + (it.qty * it.price).toFixed(2) + '</div>';
+    h += '<button type="button" class="ci-rm" onclick="rmItem(\'' + id + '\')">&#x2715;</button></div>';
+  });
+  document.getElementById('citems').innerHTML = h;
+  updateTotals();
+}
+
+function chqty(id, v) {
+  v = parseInt(v);
+  if (isNaN(v) || v < 1) v = 1;
+  if (v > cart[id].stock) v = cart[id].stock;
+  cart[id].qty = v;
+  render();
+}
+function rmItem(id) { delete cart[id]; render(); }
+function clearCart() { cart = {}; render(); }
+
+function updateTotals() {
+  var sub  = 0;
+  Object.keys(cart).forEach(function(id){ sub += cart[id].qty * cart[id].price; });
+  var disc = parseFloat(document.getElementById('disc').value) || 0;
+  var gt   = Math.max(sub - disc, 0);
+  document.getElementById('sub').textContent  = 'GHS ' + sub.toFixed(2);
+  document.getElementById('gtot').textContent = 'GHS ' + gt.toFixed(2);
+  var h = '<input type="hidden" name="discount" value="' + disc + '">';
+  h    += '<input type="hidden" name="payment_method" value="' + document.getElementById('paymethod').value + '">';
+  Object.keys(cart).forEach(function(id) {
+    h += '<input type="hidden" name="product_id" value="' + id + '">';
+    h += '<input type="hidden" name="qty" value="' + cart[id].qty + '">';
+  });
+  document.getElementById('hidden-inputs').innerHTML = h;
+}
+
+function submitSale() {
+  if (!Object.keys(cart).length) { alert('Please add at least one product!'); return; }
+  updateTotals();
+  var h = document.getElementById('hidden-inputs').innerHTML;
+  document.getElementById('form-fields').innerHTML = h;
+  document.getElementById('real-form').submit();
+}
+
+/* ── Search ── */
+document.getElementById('srch').addEventListener('input', function() {
+  var q = this.value.toLowerCase();
+  document.querySelectorAll('.product-card').forEach(function(c) {
+    c.style.display = c.getAttribute('data-name').toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
+/* ── Scanner ── */
+function openScanner() {
+  document.getElementById('scannerModal').classList.add('open');
+  document.getElementById('scan-result').className = 'scan-result';
+  document.getElementById('scan-result').textContent = '';
+  document.getElementById('manual-input').value = '';
+  startQuagga();
+}
+
+function closeScanner() {
+  document.getElementById('scannerModal').classList.remove('open');
+  if (scanning) { Quagga.stop(); scanning = false; }
+}
+
+function startQuagga() {
+  if (scanning) return;
+  Quagga.init({
+    inputStream: {
+      name: 'Live',
+      type: 'LiveStream',
+      target: document.getElementById('scanner-viewport'),
+      constraints: { facingMode: 'environment', width: 400, height: 260 }
+    },
+    decoder: {
+      readers: ['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader','upc_e_reader']
+    },
+    locate: true
+  }, function(err) {
+    if (err) {
+      document.getElementById('scan-result').className = 'scan-result notfound';
+      document.getElementById('scan-result').textContent = 'Camera error: ' + err.message + '. Use manual input below.';
+      return;
+    }
+    Quagga.start();
+    scanning = true;
+  });
+
+  var lastCode = '';
+  var lastTime = 0;
+  Quagga.onDetected(function(result) {
+    var code = result.codeResult.code;
+    var now  = Date.now();
+    if (code === lastCode && now - lastTime < 2000) return;
+    lastCode = code; lastTime = now;
+    processBarcode(code);
+  });
+}
+
+function processBarcode(code) {
+  var found = false;
+  document.querySelectorAll('.product-card').forEach(function(card) {
+    if (card.getAttribute('data-barcode') === code) {
+      found = true;
+      var name  = card.getAttribute('data-name');
+      var price = parseFloat(card.getAttribute('data-price'));
+      var stock = parseInt(card.getAttribute('data-stock'));
+      var id    = card.getAttribute('data-id');
+      addToCartById(id, name, price, stock);
+      document.getElementById('scan-result').className = 'scan-result found';
+      document.getElementById('scan-result').textContent = '✓ Added: ' + name + ' (barcode: ' + code + ')';
+      setTimeout(closeScanner, 1500);
+    }
+  });
+  if (!found) {
+    document.getElementById('scan-result').className = 'scan-result notfound';
+    document.getElementById('scan-result').textContent = '✗ No product found for barcode: ' + code;
+  }
+}
+
+function manualScan() {
+  var code = document.getElementById('manual-input').value.trim();
+  if (!code) return;
+  processBarcode(code);
+}
+
+window.addEventListener('click', function(e) {
+  if (e.target === document.getElementById('scannerModal')) closeScanner();
+});
+</script>
+{% endblock %}

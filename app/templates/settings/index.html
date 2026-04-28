@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}System Settings — SuperMart IMS{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>System settings</h1>
+  <p>Configure your store name, currency, VAT and more</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:650px;">
+
+  <div class="card" style="margin-bottom:1.25rem;">
+    <h2 style="font-size:1rem;font-weight:500;margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border);">🏪 Store information</h2>
+    <form method="POST" action="{{ url_for('settings.save') }}">
+      <input type="hidden" name="section" value="store">
+
+      <div class="field">
+        <label>Store name</label>
+        <input type="text" name="store_name" value="{{ config.get('store_name','SuperMart') }}" placeholder="e.g. SuperMart Kumasi">
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Store phone</label>
+          <input type="text" name="store_phone" value="{{ config.get('store_phone','') }}" placeholder="e.g. 0244000000">
+        </div>
+        <div class="field">
+          <label>Store email</label>
+          <input type="email" name="store_email" value="{{ config.get('store_email','') }}" placeholder="store@example.com">
+        </div>
+      </div>
+      <div class="field">
+        <label>Store address</label>
+        <input type="text" name="store_address" value="{{ config.get('store_address','') }}" placeholder="e.g. 12 Market Street, Kumasi">
+      </div>
+      <button type="submit" class="btn btn-green">Save store info</button>
+    </form>
+  </div>
+
+  <div class="card" style="margin-bottom:1.25rem;">
+    <h2 style="font-size:1rem;font-weight:500;margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border);">💰 Currency &amp; tax</h2>
+    <form method="POST" action="{{ url_for('settings.save') }}">
+      <input type="hidden" name="section" value="finance">
+      <div class="grid-2">
+        <div class="field">
+          <label>Currency symbol</label>
+          <select name="currency">
+            <option value="GHS" {% if config.get('currency','GHS')=='GHS' %}selected{% endif %}>GHS — Ghana Cedi</option>
+            <option value="USD" {% if config.get('currency','')=='USD' %}selected{% endif %}>USD — US Dollar</option>
+            <option value="EUR" {% if config.get('currency','')=='EUR' %}selected{% endif %}>EUR — Euro</option>
+            <option value="GBP" {% if config.get('currency','')=='GBP' %}selected{% endif %}>GBP — British Pound</option>
+            <option value="NGN" {% if config.get('currency','')=='NGN' %}selected{% endif %}>NGN — Nigerian Naira</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>VAT rate (%)</label>
+          <input type="number" name="vat_rate" min="0" max="100" step="0.1"
+            value="{{ config.get('vat_rate','0') }}" placeholder="e.g. 15">
+          <div class="hint">Set to 0 if VAT is not applicable</div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-green">Save finance settings</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:1rem;font-weight:500;margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border);">🔒 My account</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid #f0f0f0;">
+      <div>
+        <div style="font-weight:500;font-size:0.875rem;">{{ current_user.full_name }}</div>
+        <div style="font-size:0.78rem;color:var(--muted);">{{ current_user.email }} &mdash; {{ current_user.role | capitalize }}</div>
+      </div>
+      <a href="{{ url_for('auth.change_password') }}" class="btn btn-outline btn-sm">Change password</a>
+    </div>
+    <div style="padding-top:0.75rem;font-size:0.82rem;color:var(--muted);">
+      Staff ID: {{ current_user.staff_id or '—' }} &nbsp;|&nbsp; Department: {{ current_user.department or '—' }}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

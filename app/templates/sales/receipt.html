@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Receipt #{{ sale.id }} — SuperMart IMS{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>Sale receipt</h1>
+  <p>Receipt for sale #{{ sale.id }} — {{ sale.sale_date.strftime('%d %b %Y, %I:%M %p') }}</p>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .receipt-wrap { max-width: 480px; margin: 0 auto; }
+  .receipt {
+    background: white; border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+    font-size: 0.875rem;
+  }
+  .receipt-top { background: var(--green-dark); color: white; text-align: center; padding: 1.5rem 1rem; }
+  .receipt-top h2 { font-family: 'Syne', sans-serif; font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }
+  .receipt-top p { font-size: 0.78rem; color: rgba(255,255,255,0.65); }
+  .receipt-meta { padding: 1rem 1.25rem; border-bottom: 1px dashed var(--border); display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .meta-item { font-size: 0.78rem; }
+  .meta-label { color: var(--muted); }
+  .meta-val { font-weight: 500; color: var(--text); }
+  .receipt-items { padding: 0.5rem 0; }
+  .r-item { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 8px 1.25rem; border-bottom: 1px solid #f9f9f9; }
+  .r-item:last-child { border-bottom: none; }
+  .r-name { font-weight: 500; }
+  .r-qty { color: var(--muted); font-size: 0.8rem; }
+  .r-sub { font-weight: 500; color: var(--green-mid); }
+  .receipt-totals { padding: 1rem 1.25rem; border-top: 1px dashed var(--border); background: #fafafa; }
+  .tot-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.85rem; }
+  .tot-row.grand { font-size: 1rem; font-weight: 600; color: var(--green-mid); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .receipt-foot { text-align: center; padding: 1rem; font-size: 0.75rem; color: var(--muted); border-top: 1px dashed var(--border); }
+  .badge-pay { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 0.72rem; font-weight: 500; background: var(--green-light); color: var(--green-mid); }
+  .actions { display: flex; gap: 10px; margin-top: 1.25rem; justify-content: center; }
+
+  @media print {
+    nav, .page-header, .actions { display: none !important; }
+    .content { margin: 0; padding: 0; }
+    .receipt-wrap { max-width: 100%; }
+    body { background: white; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="receipt-wrap">
+  <div class="receipt">
+    <div class="receipt-top">
+      <h2>SuperMart IMS</h2>
+      <p>Official sales receipt</p>
+    </div>
+
+    <div class="receipt-meta">
+      <div class="meta-item"><div class="meta-label">Receipt no.</div><div class="meta-val">#{{ '%04d' % sale.id }}</div></div>
+      <div class="meta-item"><div class="meta-label">Date</div><div class="meta-val">{{ sale.sale_date.strftime('%d %b %Y') }}</div></div>
+      <div class="meta-item"><div class="meta-label">Time</div><div class="meta-val">{{ sale.sale_date.strftime('%I:%M %p') }}</div></div>
+      <div class="meta-item"><div class="meta-label">Cashier</div><div class="meta-val">{{ sale.cashier.full_name }}</div></div>
+      <div class="meta-item"><div class="meta-label">Payment</div><div class="meta-val"><span class="badge-pay">{{ sale.payment_method | upper }}</span></div></div>
+      <div class="meta-item"><div class="meta-label">Items</div><div class="meta-val">{{ sale.item_count }}</div></div>
+    </div>
+
+    <div class="receipt-items">
+      {% for item in sale.items %}
+      <div class="r-item">
+        <div>
+          <div class="r-name">{{ item.product.name }}</div>
+          <div class="r-qty">{{ item.quantity }} x GHS {{ "%.2f" | format(item.unit_price) }}</div>
+        </div>
+        <div></div>
+        <div class="r-sub">GHS {{ "%.2f" | format(item.subtotal) }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="receipt-totals">
+      <div class="tot-row"><span>Subtotal</span><span>GHS {{ "%.2f" | format(sale.total_amount) }}</span></div>
+      {% if sale.discount > 0 %}
+      <div class="tot-row" style="color:var(--danger)"><span>Discount</span><span>- GHS {{ "%.2f" | format(sale.discount) }}</span></div>
+      {% endif %}
+      <div class="tot-row grand"><span>Total paid</span><span>GHS {{ "%.2f" | format(sale.grand_total) }}</span></div>
+    </div>
+
+    <div class="receipt-foot">
+      Thank you for shopping at SuperMart!<br>
+      Please keep this receipt for your records.
+    </div>
+  </div>
+
+  <div class="actions">
+    <button onclick="window.print()" class="btn btn-green">Print receipt</button>
+    <a href="{{ url_for('sales.new_sale') }}" class="btn btn-outline">New sale</a>
+    <a href="{{ url_for('sales.history') }}" class="btn btn-outline">Sales history</a>
+  </div>
+</div>
+{% endblock %}

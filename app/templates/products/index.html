@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block title %}Products — SuperMart IMS{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>Products</h1>
+  <p>Manage your supermarket product catalogue</p>
+</div>
+{% endblock %}
+
+{% block content %}
+{% set total = products | length %}
+{% set low = products | selectattr('is_low_stock') | list | length %}
+{% set out = products | selectattr('quantity', 'eq', 0) | list | length %}
+
+<div class="stats">
+  <div class="stat"><div class="stat-label">Total products</div><div class="stat-value">{{ total }}</div></div>
+  <div class="stat"><div class="stat-label">Low stock</div><div class="stat-value" style="color:#d97706">{{ low }}</div></div>
+  <div class="stat"><div class="stat-label">Out of stock</div><div class="stat-value" style="color:#dc2626">{{ out }}</div></div>
+  <div class="stat"><div class="stat-label">Categories</div><div class="stat-value">{{ categories | length }}</div></div>
+</div>
+
+<div class="topbar">
+  <form method="GET" action="{{ url_for('products.index') }}" class="search-row">
+    <input type="text" name="search" placeholder="Search product name..." value="{{ search }}">
+    <select name="category">
+      <option value="">All categories</option>
+      {% for cat in categories %}
+        <option value="{{ cat.id }}" {% if selected_cat == cat.id | string %}selected{% endif %}>{{ cat.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-outline">Search</button>
+    {% if search or selected_cat %}
+      <a href="{{ url_for('products.index') }}" class="btn btn-outline">Clear</a>
+    {% endif %}
+  </form>
+  <a href="{{ url_for('products.add') }}" class="btn btn-green">+ Add product</a>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;">
+  {% if products %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Product name</th>
+        <th>Barcode</th>
+        <th>Category</th>
+        <th>Unit price</th>
+        <th>Cost price</th>
+        <th>Margin</th>
+        <th>Qty in stock</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in products %}
+      <tr>
+        <td style="color:#9ca3af;font-size:0.78rem">{{ p.id }}</td>
+        <td style="font-weight:500">{{ p.name }}</td>
+        <td style="font-family:monospace;font-size:0.8rem;color:#6b7280">{{ p.barcode or '—' }}</td>
+        <td>
+          {% if p.category %}
+            <span class="badge badge-green">{{ p.category.name }}</span>
+          {% else %}
+            <span class="badge badge-gray">None</span>
+          {% endif %}
+        </td>
+        <td>GHS {{ "%.2f" | format(p.unit_price) }}</td>
+        <td>GHS {{ "%.2f" | format(p.cost_price) }}</td>
+        <td>{{ p.profit_margin }}%</td>
+        <td style="font-weight:500">{{ p.quantity }}</td>
+        <td>
+          {% if p.quantity == 0 %}
+            <span class="badge badge-red">Out of stock</span>
+          {% elif p.is_low_stock %}
+            <span class="badge" style="background:#fffbeb;color:#d97706">Low stock</span>
+          {% else %}
+            <span class="badge badge-green">In stock</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('products.edit', id=p.id) }}" class="btn btn-outline btn-sm">Edit</a>
+          <form method="POST" action="{{ url_for('products.delete', id=p.id) }}" style="display:inline" onsubmit="return confirm('Delete {{ p.name }}?')">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:3rem;text-align:center;color:#9ca3af;">
+    <div style="font-size:2rem;margin-bottom:0.75rem">📦</div>
+    <div style="font-weight:500;margin-bottom:0.5rem">No products found</div>
+    <div style="font-size:0.85rem">
+      {% if search %} Try a different search term or <a href="{{ url_for('products.index') }}">clear the filter</a>.
+      {% else %} <a href="{{ url_for('products.add') }}">Add your first product</a> to get started.
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

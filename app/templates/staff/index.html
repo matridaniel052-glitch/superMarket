@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% block title %}Staff Management — SuperMart IMS{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>Staff management</h1>
+  <p>View, manage and print all registered staff members</p>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .avatar {
+    width:38px;height:38px;border-radius:50%;
+    background:var(--green-light);color:var(--green-mid);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:600;font-size:0.85rem;flex-shrink:0;
+  }
+  .staff-name-cell { display:flex;align-items:center;gap:10px; }
+  @media print {
+    nav, .page-header, .topbar, .no-print, .btn { display:none !important; }
+    body { background:white; }
+    .content { margin:0;padding:0; }
+    table { font-size:11px; }
+    .print-header { display:block !important; }
+  }
+  .print-header {
+    display:none;text-align:center;margin-bottom:1.5rem;
+    font-family:'Syne',sans-serif;
+  }
+  .print-header h2 { font-size:1.3rem;font-weight:700; }
+  .print-header p { font-size:0.82rem;color:#6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="print-header">
+  <h2>SuperMart IMS — Staff List</h2>
+  <p>Printed on {{ now.strftime('%d %B %Y at %I:%M %p') }}</p>
+  <p>Total staff: {{ users | length }}</p>
+</div>
+
+<div class="stats no-print">
+  <div class="stat"><div class="stat-label">Total staff</div><div class="stat-value">{{ users | length }}</div></div>
+  <div class="stat"><div class="stat-label">Admins</div><div class="stat-value">{{ users | selectattr('role','eq','admin') | list | length }}</div></div>
+  <div class="stat"><div class="stat-label">Cashiers</div><div class="stat-value">{{ users | selectattr('role','eq','cashier') | list | length }}</div></div>
+  <div class="stat"><div class="stat-label">Stock managers</div><div class="stat-value">{{ users | selectattr('role','eq','stock_manager') | list | length }}</div></div>
+</div>
+
+<div class="topbar no-print">
+  <div style="font-size:0.875rem;color:var(--muted);">{{ users | length }} staff member(s) registered</div>
+  <button onclick="window.print()" class="btn btn-green">🖨 Print staff list</button>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Staff member</th>
+        <th>Staff ID</th>
+        <th>Email</th>
+        <th>Department</th>
+        <th>Role</th>
+        <th>Date joined</th>
+        <th class="no-print">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td style="color:var(--muted);font-size:0.78rem;">{{ loop.index }}</td>
+        <td>
+          <div class="staff-name-cell">
+            <div class="avatar">{{ u.full_name[:2].upper() }}</div>
+            <div>
+              <div style="font-weight:500;">{{ u.full_name }}</div>
+              {% if u.id == current_user.id %}
+              <div style="font-size:0.72rem;color:var(--green-mid);">You</div>
+              {% endif %}
+            </div>
+          </div>
+        </td>
+        <td style="font-family:monospace;font-size:0.82rem;">{{ u.staff_id or '—' }}</td>
+        <td style="font-size:0.82rem;">{{ u.email }}</td>
+        <td style="font-size:0.82rem;">{{ u.department or '—' }}</td>
+        <td>
+          {% if u.role == 'admin' %}
+            <span class="badge" style="background:#fef9c3;color:#854d0e;">Admin</span>
+          {% elif u.role == 'stock_manager' %}
+            <span class="badge" style="background:#eff6ff;color:#1d4ed8;">Stock Mgr</span>
+          {% else %}
+            <span class="badge badge-green">Cashier</span>
+          {% endif %}
+        </td>
+        <td style="font-size:0.78rem;color:var(--muted);">
+          {% if u.created_at %}{{ u.created_at.strftime('%d %b %Y') }}{% else %}—{% endif %}
+        </td>
+        <td class="no-print">
+          {% if u.id != current_user.id %}
+          <form method="POST" action="{{ url_for('auth.change_role', user_id=u.id) }}" style="display:inline;">
+            <select name="role" onchange="this.form.submit()"
+              style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;font-family:'DM Sans',sans-serif;cursor:pointer;">
+              <option value="cashier" {% if u.role=='cashier' %}selected{% endif %}>Cashier</option>
+              <option value="stock_manager" {% if u.role=='stock_manager' %}selected{% endif %}>Stock Mgr</option>
+              <option value="admin" {% if u.role=='admin' %}selected{% endif %}>Admin</option>
+            </select>
+          </form>
+          <form method="POST" action="{{ url_for('auth.delete_user', user_id=u.id) }}" style="display:inline;"
+            onsubmit="return confirm('Delete {{ u.full_name }}? This cannot be undone.')">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+          {% else %}
+          <span style="font-size:0.78rem;color:var(--muted);">Current user</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

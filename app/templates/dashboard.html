@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — SuperMart IMS{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <h1>Good day, {{ current_user.full_name.split()[0] }}!</h1>
+  <p>
+    {% if current_user.role == 'cashier' %}
+    Cashier dashboard — you can process sales and view your sales history
+    {% else %}
+    Admin dashboard — full system access
+    {% endif %}
+  </p>
+</div>
+{% endblock %}
+{% block content %}
+
+{% if current_user.role == 'cashier' %}
+<!-- CASHIER VIEW -->
+<div class="stats">
+  <div class="stat"><div class="stat-label">My sales today</div><div class="stat-value" style="color:var(--green-mid)">{{ sale_count }}</div></div>
+  <div class="stat"><div class="stat-label">My total revenue</div><div class="stat-value" style="color:var(--green-mid)">GHS {{ "%.2f" | format(total_revenue) }}</div></div>
+</div>
+<div class="card" style="text-align:center;padding:2.5rem;">
+  <div style="font-size:3rem;margin-bottom:1rem;">🛒</div>
+  <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:700;margin-bottom:0.5rem;">Ready to process a sale?</div>
+  <div style="color:var(--muted);font-size:0.875rem;margin-bottom:1.5rem;">Click the button below to open the sales point and start adding products to the cart.</div>
+  <a href="{{ url_for('sales.new_sale') }}" class="btn btn-green" style="padding:14px 32px;font-size:1rem;">Start new sale</a>
+</div>
+<div style="margin-top:1rem;text-align:center;">
+  <a href="{{ url_for('sales.history') }}" class="btn btn-outline">View my sales history</a>
+</div>
+
+{% else %}
+<!-- ADMIN VIEW -->
+<div class="stats">
+  <div class="stat"><div class="stat-label">Total products</div><div class="stat-value">{{ product_count }}</div></div>
+  <div class="stat"><div class="stat-label">Low stock alerts</div><div class="stat-value" style="color:#d97706">{{ low_stock_count }}</div></div>
+  <div class="stat"><div class="stat-label">Total sales</div><div class="stat-value" style="color:var(--green-mid)">{{ sale_count }}</div></div>
+  <div class="stat"><div class="stat-label">Total revenue</div><div class="stat-value" style="color:var(--green-mid)">GHS {{ "%.2f" | format(total_revenue) }}</div></div>
+</div>
+<div class="card">
+  <h2 style="font-size:1rem;font-weight:500;margin-bottom:0.75rem;">Quick actions</h2>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <a href="{{ url_for('sales.new_sale') }}" class="btn btn-green">+ New sale</a>
+    <a href="{{ url_for('products.add') }}" class="btn btn-outline">+ Add product</a>
+    <a href="{{ url_for('sales.history') }}" class="btn btn-outline">Sales history</a>
+    <a href="{{ url_for('reports.index') }}" class="btn btn-outline">Reports</a>
+    <a href="{{ url_for('stock.alerts') }}" class="btn btn-outline">⚠ Alerts</a>
+  </div>
+</div>
+{% if low_stock_count > 0 %}
+<div style="margin-top:1.25rem;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:1rem 1.25rem;">
+  <div style="font-weight:500;color:#d97706;margin-bottom:4px;">⚠ {{ low_stock_count }} product(s) are running low on stock</div>
+  <div style="font-size:0.85rem;color:#92400e;">Check your <a href="{{ url_for('stock.alerts') }}">reorder alerts</a> and reorder soon.</div>
+</div>
+{% endif %}
+{% endif %}
+
+{% endblock %}

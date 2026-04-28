@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — SuperMart IMS</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green-dark:#1a3a1f;--green-mid:#2d6a35;--green-accent:#4caf60;
+    --cream:#faf9f6;--text:#1c1c1c;--muted:#6b7280;--border:#d1d5db;
+    --error-bg:#fef2f2;--error-text:#b91c1c;
+    --success-bg:#f0fdf4;--success-text:#15803d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--cream);min-height:100vh;display:flex;}
+  .left-panel{width:45%;background:var(--green-dark);display:flex;flex-direction:column;justify-content:space-between;padding:3rem;position:relative;overflow:hidden;}
+  .left-panel::before{content:'';position:absolute;top:-80px;right:-80px;width:320px;height:320px;border-radius:50%;background:#2d6a35;opacity:0.4;}
+  .left-panel::after{content:'';position:absolute;bottom:-60px;left:-60px;width:240px;height:240px;border-radius:50%;background:#4caf60;opacity:0.15;}
+  .brand{position:relative;z-index:1;}
+  .brand-logo{width:48px;height:48px;background:var(--green-accent);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;}
+  .brand-logo svg{width:26px;height:26px;fill:white;}
+  .brand-name{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:700;color:white;}
+  .brand-tag{font-size:0.8rem;color:rgba(255,255,255,0.5);margin-top:2px;}
+  .left-copy{position:relative;z-index:1;}
+  .left-copy h2{font-family:'Syne',sans-serif;font-size:2rem;font-weight:700;color:white;line-height:1.2;margin-bottom:1rem;}
+  .left-copy p{font-size:0.9rem;color:rgba(255,255,255,0.6);line-height:1.6;}
+  .features{position:relative;z-index:1;}
+  .feature{display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;}
+  .feature-dot{width:8px;height:8px;border-radius:50%;background:var(--green-accent);flex-shrink:0;}
+  .feature span{font-size:0.82rem;color:rgba(255,255,255,0.7);}
+  .right-panel{flex:1;display:flex;align-items:center;justify-content:center;padding:3rem 2rem;}
+  .form-box{width:100%;max-width:420px;}
+  .form-title{font-family:'Syne',sans-serif;font-size:1.75rem;font-weight:700;color:var(--text);margin-bottom:0.4rem;}
+  .form-sub{font-size:0.875rem;color:var(--muted);margin-bottom:1.5rem;}
+  .role-selector{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.5rem;}
+  .role-btn{padding:12px;border-radius:10px;border:2px solid var(--border);background:white;cursor:pointer;text-align:center;transition:all 0.2s;font-family:'DM Sans',sans-serif;}
+  .role-btn:hover{border-color:var(--green-accent);}
+  .role-btn.active{border-color:var(--green-mid);background:#f0fdf4;}
+  .role-btn .role-icon{font-size:1.5rem;margin-bottom:4px;}
+  .role-btn .role-name{font-size:0.85rem;font-weight:500;color:var(--text);}
+  .role-btn .role-desc{font-size:0.72rem;color:var(--muted);margin-top:2px;}
+  .flash{padding:10px 14px;border-radius:8px;font-size:0.85rem;margin-bottom:1.25rem;font-weight:500;}
+  .flash.error{background:var(--error-bg);color:var(--error-text);border:1px solid #fca5a5;}
+  .flash.success{background:var(--success-bg);color:var(--success-text);border:1px solid #86efac;}
+  .flash.info{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;}
+  .field{margin-bottom:1.1rem;}
+  label{display:block;font-size:0.82rem;font-weight:500;color:var(--text);margin-bottom:6px;}
+  input[type=email],input[type=password],input[type=text]{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:0.9rem;font-family:'DM Sans',sans-serif;background:white;color:var(--text);outline:none;transition:border-color 0.2s;}
+  input:focus{border-color:var(--green-accent);}
+
+  /* Password toggle */
+  .pw-wrap{position:relative;}
+  .pw-wrap input{padding-right:44px;}
+  .pw-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;display:flex;align-items:center;}
+  .pw-eye:hover{color:var(--text);}
+  .pw-eye svg{width:18px;height:18px;}
+
+  .remember-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;}
+  .remember-row label{font-size:0.82rem;color:var(--muted);margin:0;}
+  .remember-row input[type=checkbox]{width:auto;margin-right:6px;accent-color:var(--green-accent);}
+  .btn-primary{width:100%;padding:12px;background:var(--green-mid);color:white;border:none;border-radius:10px;font-size:0.95rem;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;transition:background 0.2s;}
+  .btn-primary:hover{background:var(--green-dark);}
+  .register-link{text-align:center;margin-top:1.25rem;font-size:0.85rem;color:var(--muted);}
+  .register-link a{color:var(--green-mid);text-decoration:none;font-weight:500;}
+  .register-link a:hover{text-decoration:underline;}
+  .footer-note{text-align:center;font-size:0.78rem;color:var(--muted);margin-top:1.5rem;}
+  @media(max-width:680px){.left-panel{display:none;}}
+</style>
+</head>
+<body>
+<div class="left-panel">
+  <div class="brand">
+    <div class="brand-logo">
+      <svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm10 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-10.9-5h11.45c.75 0 1.41-.41 1.75-1.03L21 7H6.21L5.27 3H2v2h2l3.6 7.59L6.25 14c-.16.28-.25.61-.25.96C6 16.1 6.9 17 8 17h13v-2H8.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63z"/></svg>
+    </div>
+    <div class="brand-name">SuperMart IMS</div>
+    <div class="brand-tag">Inventory Management System</div>
+  </div>
+  <div class="left-copy">
+    <h2>Manage your store smarter</h2>
+    <p>Track stock, process sales, manage suppliers and generate reports — all in one place.</p>
+  </div>
+  <div class="features">
+    <div class="feature"><div class="feature-dot"></div><span>Real-time stock tracking</span></div>
+    <div class="feature"><div class="feature-dot"></div><span>Automated reorder alerts</span></div>
+    <div class="feature"><div class="feature-dot"></div><span>Sales &amp; profit reporting</span></div>
+    <div class="feature"><div class="feature-dot"></div><span>Supplier management</span></div>
+  </div>
+</div>
+
+<div class="right-panel">
+  <div class="form-box">
+    <div class="form-title">Welcome back</div>
+    <div class="form-sub">Select your role then enter your credentials</div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="role-selector">
+      <div class="role-btn active" id="btn-admin" onclick="selectRole('admin')">
+        <div class="role-icon">🛡️</div>
+        <div class="role-name">Admin</div>
+        <div class="role-desc">Full system access</div>
+      </div>
+      <div class="role-btn" id="btn-cashier" onclick="selectRole('cashier')">
+        <div class="role-icon">🧾</div>
+        <div class="role-name">Cashier / Staff</div>
+        <div class="role-desc">Sales point access</div>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('auth.login') }}">
+      <input type="hidden" name="login_role" id="login_role" value="admin">
+
+      <div class="field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" required>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="password" name="password" placeholder="Enter your password" required>
+          <button type="button" class="pw-eye" onclick="togglePw('password', 'eye-login')" title="Show/hide password">
+            <svg id="eye-login" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="remember-row">
+        <label><input type="checkbox" name="remember"> Remember me</label>
+      </div>
+      <button type="submit" class="btn-primary" id="login-btn">Log in as Admin</button>
+    </form>
+
+    <div class="register-link">
+      New staff member? <a href="{{ url_for('auth.signup') }}">Register here</a>
+    </div>
+    <div class="footer-note">Matri Dan IMS &copy; 2026 &mdash; For authorised staff only</div>
+  </div>
+</div>
+
+<script>
+function selectRole(role) {
+  document.getElementById('login_role').value = role;
+  document.getElementById('btn-admin').classList.toggle('active', role === 'admin');
+  document.getElementById('btn-cashier').classList.toggle('active', role === 'cashier');
+  document.getElementById('login-btn').textContent = role === 'admin' ? 'Log in as Admin' : 'Log in as Cashier';
+}
+
+function togglePw(inputId, iconId) {
+  var input = document.getElementById(inputId);
+  var icon  = document.getElementById(iconId);
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+    icon.setAttribute('stroke','currentColor');
+  } else {
+    input.type = 'password';
+    icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}Reorder Alerts — SuperMart IMS{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>Reorder alerts</h1>
+  <p>Products that need to be restocked urgently</p>
+</div>
+{% endblock %}
+
+{% block content %}
+
+{% if not low_stock %}
+<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:2rem;text-align:center;">
+  <div style="font-size:2.5rem;margin-bottom:0.5rem;">✅</div>
+  <div style="font-weight:500;color:#15803d;font-size:1.1rem;margin-bottom:0.25rem;">All stock levels are healthy!</div>
+  <div style="font-size:0.875rem;color:#166534;">No products are below their reorder level right now.</div>
+</div>
+
+{% else %}
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-label">Low stock items</div>
+    <div class="stat-value" style="color:#d97706;">{{ low_stock | length }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Out of stock</div>
+    <div class="stat-value" style="color:#dc2626;">{{ out_stock | length }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Action needed</div>
+    <div class="stat-value" style="color:#dc2626;">{{ low_stock | length }}</div>
+  </div>
+</div>
+
+{% if out_stock %}
+<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;">
+  <div style="font-weight:500;color:#dc2626;margin-bottom:6px;">🚨 {{ out_stock | length }} product(s) are completely OUT OF STOCK!</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for p in out_stock %}
+    <span style="background:white;border:1px solid #fca5a5;border-radius:8px;padding:4px 12px;font-size:0.82rem;color:#dc2626;font-weight:500;">
+      {{ p.name }}
+    </span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem;">
+  <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);background:#fffbeb;">
+    <div style="font-weight:500;color:#d97706;">⚠ Products below reorder level — action required</div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>Current stock</th>
+        <th>Reorder level</th>
+        <th>Shortage</th>
+        <th>Status</th>
+        <th>Quick action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in low_stock %}
+      <tr>
+        <td style="font-weight:500;">{{ p.name }}</td>
+        <td>
+          <span style="font-weight:600;color:{% if p.quantity == 0 %}#dc2626{% else %}#d97706{% endif %};">
+            {{ p.quantity }}
+          </span>
+        </td>
+        <td>{{ p.reorder_level }}</td>
+        <td>
+          <span style="color:#dc2626;font-weight:500;">
+            {{ p.reorder_level - p.quantity }} units short
+          </span>
+        </td>
+        <td>
+          {% if p.quantity == 0 %}
+            <span class="badge badge-red">Out of stock</span>
+          {% else %}
+            <span class="badge" style="background:#fffbeb;color:#d97706;">Low stock</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('stock.adjust') }}?product={{ p.id }}" class="btn btn-outline btn-sm">+ Add stock</a>
+          {% if suppliers %}
+          <a href="{{ url_for('suppliers.orders', supplier_id=suppliers[0].id) }}" class="btn btn-green btn-sm">Order from supplier</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div style="font-weight:500;margin-bottom:0.75rem;">What should you do?</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;">
+    <div style="background:#f0fdf4;border-radius:8px;padding:0.875rem;">
+      <div style="font-weight:500;color:#15803d;margin-bottom:4px;">Option 1 — Quick stock in</div>
+      <div style="font-size:0.82rem;color:#166534;margin-bottom:8px;">Manually add stock if you already have the goods in the store.</div>
+      <a href="{{ url_for('stock.adjust') }}" class="btn btn-green btn-sm">+ Adjust stock</a>
+    </div>
+    <div style="background:#eff6ff;border-radius:8px;padding:0.875rem;">
+      <div style="font-weight:500;color:#1d4ed8;margin-bottom:4px;">Option 2 — Create purchase order</div>
+      <div style="font-size:0.82rem;color:#1e40af;margin-bottom:8px;">Order from a supplier and update stock when delivered.</div>
+      <a href="{{ url_for('suppliers.index') }}" class="btn btn-outline btn-sm">Go to suppliers</a>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

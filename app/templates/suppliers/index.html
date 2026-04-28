@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Suppliers — SuperMart IMS{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <h1>Suppliers</h1>
+  <p>Manage your product suppliers and purchase orders</p>
+</div>
+{% endblock %}
+{% block content %}
+
+{% set total_orders = namespace(count=0) %}
+{% for s in suppliers %}
+  {% set total_orders.count = total_orders.count + (s.orders | length) %}
+{% endfor %}
+
+<div class="stats">
+  <div class="stat"><div class="stat-label">Total suppliers</div><div class="stat-value">{{ suppliers | length }}</div></div>
+  <div class="stat"><div class="stat-label">Total orders</div><div class="stat-value">{{ total_orders.count }}</div></div>
+</div>
+
+<div class="topbar">
+  <div style="font-size:0.875rem;color:var(--muted);">{{ suppliers | length }} supplier(s) registered</div>
+  <a href="{{ url_for('suppliers.add') }}" class="btn btn-green">+ Add supplier</a>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+  {% if suppliers %}
+  <table>
+    <thead>
+      <tr>
+        <th>Supplier name</th>
+        <th>Contact person</th>
+        <th>Phone</th>
+        <th>Email</th>
+        <th>Payment terms</th>
+        <th>Orders</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in suppliers %}
+      <tr>
+        <td style="font-weight:500;">{{ s.name }}</td>
+        <td>{{ s.contact or '—' }}</td>
+        <td>{{ s.phone or '—' }}</td>
+        <td>{{ s.email or '—' }}</td>
+        <td>{{ s.payment_terms or '—' }}</td>
+        <td><span class="badge badge-green">{{ s.orders | length }}</span></td>
+        <td>
+          <a href="{{ url_for('suppliers.orders', supplier_id=s.id) }}" class="btn btn-outline btn-sm">Orders</a>
+          <a href="{{ url_for('suppliers.edit', id=s.id) }}" class="btn btn-outline btn-sm">Edit</a>
+          <form method="POST" action="{{ url_for('suppliers.delete', id=s.id) }}" style="display:inline;" onsubmit="return confirm('Delete {{ s.name }}?')">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:3rem;text-align:center;color:#9ca3af;">
+    <div style="font-size:2rem;margin-bottom:0.75rem;">🏭</div>
+    <div style="font-weight:500;margin-bottom:0.5rem;">No suppliers yet</div>
+    <div style="font-size:0.85rem;"><a href="{{ url_for('suppliers.add') }}">Add your first supplier</a></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

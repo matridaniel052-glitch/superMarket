@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Categories — SuperMart IMS{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>Categories</h1>
+  <p>Organise your products into categories</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:800px;">
+
+  <div class="card">
+    <h2 style="font-size:1rem;font-weight:500;margin-bottom:1rem;">Add new category</h2>
+    <form method="POST" action="{{ url_for('products.categories') }}">
+      <div class="field">
+        <label>Category name *</label>
+        <input type="text" name="name" placeholder="e.g. Beverages, Dairy, Snacks" required autofocus>
+      </div>
+      <button type="submit" class="btn btn-green">Add category</button>
+    </form>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="padding:1rem 1.25rem;border-bottom:1px solid #f0f0f0;">
+      <h2 style="font-size:1rem;font-weight:500;">All categories ({{ categories | length }})</h2>
+    </div>
+    {% if categories %}
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Products</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in categories %}
+        <tr>
+          <td style="font-weight:500">{{ cat.name }}</td>
+          <td><span class="badge badge-green">{{ cat.products | length }}</span></td>
+          <td>
+            <form method="POST" action="{{ url_for('products.delete_category', id=cat.id) }}" onsubmit="return confirm('Delete category {{ cat.name }}? Products will become uncategorised.')">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:2rem;text-align:center;color:#9ca3af;font-size:0.875rem;">
+      No categories yet. Add your first one!
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<div style="margin-top:1rem;">
+  <a href="{{ url_for('products.index') }}" class="btn btn-outline">← Back to products</a>
+</div>
+{% endblock %}

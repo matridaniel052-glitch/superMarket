@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Add Supplier — SuperMart IMS{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <h1>Add new supplier</h1>
+  <p>Fill in the supplier's details below</p>
+</div>
+{% endblock %}
+{% block content %}
+<div style="max-width:600px;">
+  <div class="card">
+    <form method="POST" action="{{ url_for('suppliers.add') }}">
+      <div class="field">
+        <label>Company / Supplier name *</label>
+        <input type="text" name="name" placeholder="e.g. Accra Foods Ltd" required autofocus>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Contact person</label>
+          <input type="text" name="contact" placeholder="e.g. Kwame Asante">
+        </div>
+        <div class="field">
+          <label>Phone number</label>
+          <input type="text" name="phone" placeholder="e.g. 0244123456">
+        </div>
+      </div>
+      <div class="field">
+        <label>Email address</label>
+        <input type="email" name="email" placeholder="e.g. supplier@example.com">
+      </div>
+      <div class="field">
+        <label>Address</label>
+        <input type="text" name="address" placeholder="e.g. 12 Ring Road, Accra">
+      </div>
+      <div class="field">
+        <label>Payment terms</label>
+        <input type="text" name="payment_terms" placeholder="e.g. 30 days, Cash on delivery">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:0.5rem;">
+        <button type="submit" class="btn btn-green">Save supplier</button>
+        <a href="{{ url_for('suppliers.index') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

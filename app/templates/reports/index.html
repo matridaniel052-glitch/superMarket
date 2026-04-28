@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}Reports — SuperMart IMS{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>Reports &amp; analytics</h1>
+  <p>Sales performance, top products and profit margins</p>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .chart-box { background:white; border:1px solid var(--border); border-radius:12px; padding:1.25rem; margin-bottom:1.5rem; }
+  .chart-title { font-size:0.95rem; font-weight:500; color:var(--text); margin-bottom:1rem; }
+  .bar-chart { display:flex; align-items:flex-end; gap:8px; height:180px; padding-bottom:24px; position:relative; border-bottom:2px solid var(--border); }
+  .bar-wrap { display:flex; flex-direction:column; align-items:center; flex:1; height:100%; justify-content:flex-end; }
+  .bar { width:100%; background:var(--green-mid); border-radius:4px 4px 0 0; transition:height 0.4s; min-height:2px; }
+  .bar:hover { background:var(--green-dark); }
+  .bar-label { font-size:0.7rem; color:var(--muted); margin-top:6px; text-align:center; }
+  .bar-val { font-size:0.68rem; color:var(--green-mid); font-weight:500; margin-bottom:2px; }
+  .top-bar { height:12px; border-radius:99px; background:var(--green-mid); margin-bottom:4px; }
+  .section-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="stats">
+  <div class="stat"><div class="stat-label">Total sales</div><div class="stat-value">{{ total_sales }}</div></div>
+  <div class="stat"><div class="stat-label">Total revenue</div><div class="stat-value" style="color:var(--green-mid)">GHS {{ "%.2f" | format(total_revenue) }}</div></div>
+  <div class="stat"><div class="stat-label">Gross profit</div><div class="stat-value" style="color:{% if gross_profit >= 0 %}var(--green-mid){% else %}#dc2626{% endif %}">GHS {{ "%.2f" | format(gross_profit) }}</div></div>
+  <div class="stat"><div class="stat-label">Total products</div><div class="stat-value">{{ total_products }}</div></div>
+</div>
+
+<!-- Sales chart last 7 days -->
+<div class="chart-box">
+  <div class="chart-title">Sales revenue — last 7 days</div>
+  {% set max_val = days_totals | max if days_totals | max > 0 else 1 %}
+  <div class="bar-chart">
+    {% for i in range(days_labels | length) %}
+    <div class="bar-wrap">
+      <div class="bar-val">{% if days_totals[i] > 0 %}GHS {{ days_totals[i] }}{% endif %}</div>
+      <div class="bar" style="height:{{ ((days_totals[i] / max_val) * 140) | int }}px;" title="{{ days_labels[i] }}: GHS {{ days_totals[i] }}"></div>
+      <div class="bar-label">{{ days_labels[i] }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if days_totals | sum == 0 %}
+  <div style="text-align:center;color:var(--muted);font-size:0.85rem;padding:1rem 0;">No sales in the last 7 days yet.</div>
+  {% endif %}
+</div>
+
+<div class="section-grid">
+
+  <!-- Top selling products -->
+  <div class="chart-box" style="margin-bottom:0;">
+    <div class="chart-title">Top 5 selling products</div>
+    {% if top_products %}
+      {% set max_qty = top_products[0].total_qty %}
+      {% for p in top_products %}
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:4px;">
+          <span style="font-weight:500;">{{ p.name }}</span>
+          <span style="color:var(--muted);">{{ p.total_qty }} sold &nbsp;·&nbsp; GHS {{ "%.2f" | format(p.total_revenue) }}</span>
+        </div>
+        <div style="background:#f0f0f0;border-radius:99px;height:8px;overflow:hidden;">
+          <div class="top-bar" style="width:{{ ((p.total_qty / max_qty) * 100) | int }}%;background:var(--green-mid);height:8px;margin-bottom:0;border-radius:99px;"></div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div style="text-align:center;color:var(--muted);font-size:0.85rem;padding:1rem 0;">No sales recorded yet.</div>
+    {% endif %}
+  </div>
+
+  <!-- Profit margin table -->
+  <div class="chart-box" style="margin-bottom:0;padding:0;overflow:hidden;">
+    <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);">
+      <div class="chart-title" style="margin-bottom:0;">Profit margin per product</div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Sell price</th>
+          <th>Cost price</th>
+          <th>Margin</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in products %}
+        <tr>
+          <td style="font-weight:500;font-size:0.82rem;">{{ p.name }}</td>
+          <td style="font-size:0.82rem;">GHS {{ "%.2f" | format(p.unit_price) }}</td>
+          <td style="font-size:0.82rem;">GHS {{ "%.2f" | format(p.cost_price) }}</td>
+          <td>
+            {% if p.profit_margin >= 30 %}
+              <span class="badge badge-green">{{ p.profit_margin }}%</span>
+            {% elif p.profit_margin >= 10 %}
+              <span class="badge" style="background:#fffbeb;color:#d97706;">{{ p.profit_margin }}%</span>
+            {% else %}
+              <span class="badge badge-red">{{ p.profit_margin }}%</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- All sales table -->
+<div class="chart-box" style="margin-top:1.5rem;padding:0;overflow:hidden;">
+  <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+    <div class="chart-title" style="margin-bottom:0;">All sales breakdown</div>
+    <a href="{{ url_for('sales.history') }}" class="btn btn-outline btn-sm">View full history</a>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Items</th><th>Subtotal</th><th>Discount</th><th>Total paid</th><th>Payment</th></tr>
+    </thead>
+    <tbody>
+      {% for s in sales %}
+      <tr>
+        <td style="font-size:0.78rem;color:var(--muted);">{{ s.sale_date.strftime('%d %b %Y, %I:%M %p') }}</td>
+        <td>{{ s.items | length }}</td>
+        <td>GHS {{ "%.2f" | format(s.subtotal) }}</td>
+        <td>{% if s.discount > 0 %}<span style="color:#d97706;">-GHS {{ "%.2f" | format(s.discount) }}</span>{% else %}—{% endif %}</td>
+        <td style="font-weight:500;color:var(--green-mid);">GHS {{ "%.2f" | format(s.grand_total) }}</td>
+        <td><span class="badge badge-gray" style="text-transform:capitalize;">{{ s.payment_method }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

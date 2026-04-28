@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Adjust Stock — SuperMart IMS{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <h1>Adjust stock</h1>
+  <p>Manually add or remove stock and record expiry dates</p>
+</div>
+{% endblock %}
+{% block content %}
+<div style="max-width:580px;">
+  <div class="card">
+    <form method="POST" action="{{ url_for('stock.adjust') }}">
+
+      <div class="field">
+        <label>Product *</label>
+        <select name="product_id" required>
+          <option value="">-- Select a product --</option>
+          {% for p in products %}
+          <option value="{{ p.id }}">{{ p.name }} ({{ p.quantity }} in stock)</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Action *</label>
+        <select name="action" required>
+          <option value="in">Stock IN — add stock (goods received)</option>
+          <option value="out">Stock OUT — remove stock (damage/loss/correction)</option>
+        </select>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label>Quantity *</label>
+          <input type="number" name="quantity" min="1" placeholder="e.g. 50" required>
+        </div>
+        <div class="field">
+          <label>Expiry date (optional)</label>
+          <input type="date" name="expiry_date">
+          <div class="hint">Only for perishable goods</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Reason</label>
+        <input type="text" name="reason" placeholder="e.g. New delivery, Damaged goods, Stock count correction">
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:0.5rem;">
+        <button type="submit" class="btn btn-green">Save adjustment</button>
+        <a href="{{ url_for('stock.index') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

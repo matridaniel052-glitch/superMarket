@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block title %}Edit Product — SuperMart IMS{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <h1>Edit product</h1>
+  <p>Update the details for "{{ product.name }}"</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:650px;">
+  <div class="card">
+    <form method="POST" action="{{ url_for('products.edit', id=product.id) }}">
+
+      <div class="field">
+        <label>Product name *</label>
+        <input type="text" name="name" value="{{ product.name }}" required autofocus>
+      </div>
+
+      <div class="field">
+        <label>Barcode</label>
+        <input type="text" name="barcode" value="{{ product.barcode or '' }}" placeholder="Optional">
+      </div>
+
+      <div class="field">
+        <label>Category</label>
+        <select name="category_id">
+          <option value="">-- No category --</option>
+          {% for cat in categories %}
+            <option value="{{ cat.id }}" {% if product.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label>Selling price (GHS) *</label>
+          <input type="number" name="unit_price" step="0.01" min="0" value="{{ product.unit_price }}" required>
+        </div>
+        <div class="field">
+          <label>Cost price (GHS)</label>
+          <input type="number" name="cost_price" step="0.01" min="0" value="{{ product.cost_price }}">
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label>Quantity in stock *</label>
+          <input type="number" name="quantity" min="0" value="{{ product.quantity }}" required>
+        </div>
+        <div class="field">
+          <label>Reorder level</label>
+          <input type="number" name="reorder_level" min="0" value="{{ product.reorder_level }}">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:0.5rem">
+        <button type="submit" class="btn btn-green">Update product</button>
+        <a href="{{ url_for('products.index') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% block title %}Orders — {{ supplier.name }} — SuperMart IMS{% endblock %}
+{% block page_header %}
+<div class="page-header">
+  <h1>{{ supplier.name }}</h1>
+  <p>Purchase orders &mdash; {{ supplier.phone or '' }} &nbsp; {{ supplier.email or '' }}</p>
+</div>
+{% endblock %}
+{% block extra_css %}
+<style>
+  .order-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+  .status-draft     { background:#f3f4f6;color:#6b7280; }
+  .status-sent      { background:#eff6ff;color:#1d4ed8; }
+  .status-delivered { background:#f0fdf4;color:#15803d; }
+  .status-paid      { background:#ecfdf5;color:#065f46; }
+  .po-card { background:white; border:1px solid var(--border); border-radius:10px; padding:1rem 1.25rem; margin-bottom:1rem; }
+  .po-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; }
+  .po-title { font-weight:500; font-size:0.95rem; }
+  .po-meta { font-size:0.78rem; color:var(--muted); margin-bottom:0.75rem; }
+  .po-items-table { width:100%; font-size:0.82rem; border-collapse:collapse; }
+  .po-items-table td { padding:4px 8px; border-bottom:1px solid #f0f0f0; }
+  .po-items-table td:last-child { text-align:right; font-weight:500; }
+  .po-total { display:flex; justify-content:space-between; font-weight:600; font-size:0.9rem; margin-top:8px; padding-top:8px; border-top:1px solid var(--border); }
+  .po-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:0.75rem; }
+</style>
+{% endblock %}
+{% block content %}
+<div style="margin-bottom:1rem;">
+  <a href="{{ url_for('suppliers.index') }}" class="btn btn-outline btn-sm">← Back to suppliers</a>
+</div>
+<div class="order-grid">
+  <!-- Left: create new order -->
+  <div>
+    <div class="card">
+      <h2 style="font-size:1rem;font-weight:500;margin-bottom:1rem;">Create new purchase order</h2>
+      <form method="POST" action="{{ url_for('suppliers.create_order', supplier_id=supplier.id) }}" id="po-form">
+        <div id="po-lines">
+          <div class="po-line" style="display:grid;grid-template-columns:2fr 80px 90px 28px;gap:6px;margin-bottom:6px;align-items:center;">
+            <select name="product_id" style="padding:7px;border:1px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.82rem;">
+              <option value="">Select product</option>
+              {% for p in products %}
+              <option value="{{ p.id }}" data-cost="{{ p.cost_price }}">{{ p.name }}</option>
+              {% endfor %}
+            </select>
+            <input type="number" name="quantity" placeholder="Qty" min="1" style="padding:7px;border:1px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.82rem;text-align:center;">
+            <input type="number" name="cost_price" placeholder="Cost" step="0.01" min="0" style="padding:7px;border:1px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.82rem;">
+            <button type="button" onclick="removeLine(this)" style="background:none;border:none;color:#dc2626;font-size:1.1rem;cursor:pointer;">&#x2715;</button>
+          </div>
+        </div>
+        <button type="button" onclick="addLine()" class="btn btn-outline btn-sm" style="margin-bottom:1rem;">+ Add product line</button>
+        <div class="field">
+          <label>Notes (optional)</label>
+          <input type="text" name="notes" placeholder="e.g. Urgent delivery needed">
+        </div>
+        <button type="submit" class="btn btn-green" style="width:100%;">Create purchase order</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Right: existing orders -->
+  <div>
+    <h2 style="font-size:1rem;font-weight:500;margin-bottom:0.75rem;">Order history ({{ supplier.orders | length }})</h2>
+    {% if supplier.orders %}
+      {% for po in supplier.orders | sort(attribute='order_date', reverse=True) %}
+      <div class="po-card">
+        <div class="po-header">
+          <div class="po-title">Order #{{ po.id }}</div>
+          <span class="badge status-{{ po.status }}" style="text-transform:capitalize;">{{ po.status }}</span>
+        </div>
+        <div class="po-meta">{{ po.order_date.strftime('%d %b %Y, %I:%M %p') }}{% if po.notes %} &mdash; {{ po.notes }}{% endif %}</div>
+        <table class="po-items-table">
+          {% for item in po.items %}
+          <tr>
+            <td>{{ item.product.name }}</td>
+            <td style="color:var(--muted);">x{{ item.quantity }}</td>
+            <td>GHS {{ "%.2f" | format(item.subtotal) }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+        <div class="po-total"><span>Total</span><span>GHS {{ "%.2f" | format(po.computed_total) }}</span></div>
+        <div class="po-actions">
+          {% if po.status != 'delivered' and po.status != 'paid' %}
+          <form method="POST" action="{{ url_for('suppliers.update_status', order_id=po.id) }}" style="display:inline;">
+            <select name="status" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;font-family:'DM Sans',sans-serif;">
+              <option value="draft" {% if po.status=='draft' %}selected{% endif %}>Draft</option>
+              <option value="sent" {% if po.status=='sent' %}selected{% endif %}>Sent</option>
+              <option value="delivered" {% if po.status=='delivered' %}selected{% endif %}>Delivered</option>
+              <option value="paid" {% if po.status=='paid' %}selected{% endif %}>Paid</option>
+            </select>
+            <button type="submit" class="btn btn-outline btn-sm">Update</button>
+          </form>
+          {% else %}
+          <span style="font-size:0.78rem;color:var(--success);">&#10003; Stock updated on delivery</span>
+          {% endif %}
+          <form method="POST" action="{{ url_for('suppliers.delete_order', order_id=po.id) }}" style="display:inline;" onsubmit="return confirm('Delete order #{{ po.id }}?')">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+    <div style="text-align:center;color:var(--muted);padding:2rem;background:white;border:1px solid var(--border);border-radius:10px;">
+      <div style="font-size:1.5rem;margin-bottom:0.5rem;">📋</div>
+      No orders yet for this supplier.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function addLine() {
+  var container = document.getElementById('po-lines');
+  var first = container.querySelector('.po-line');
+  var clone = first.cloneNode(true);
+  clone.querySelectorAll('input').forEach(function(i){ i.value=''; });
+  clone.querySelector('select').selectedIndex = 0;
+  container.appendChild(clone);
+}
+function removeLine(btn) {
+  var lines = document.querySelectorAll('.po-line');
+  if (lines.length > 1) btn.closest('.po-line').remove();
+}
+document.getElementById('po-form').addEventListener('change', function(e) {
+  if (e.target.tagName === 'SELECT' && e.target.name === 'product_id') {
+    var opt = e.target.options[e.target.selectedIndex];
+    var cost = opt.getAttribute('data-cost');
+    var row = e.target.closest('.po-line');
+    if (cost) row.querySelector('input[name="cost_price"]').value = cost;
+  }
+});
+</script>
+{% endblock %}

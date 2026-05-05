@@ -3,6 +3,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id            = db.Column(db.Integer, primary_key=True)
@@ -21,6 +22,7 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -119,7 +121,7 @@ class PurchaseOrder(db.Model):
 
     @property
     def status_color(self):
-        return {'draft':'gray','sent':'blue','delivered':'green','paid':'green'}.get(self.status,'gray')
+        return {'draft': 'gray', 'sent': 'blue', 'delivered': 'green', 'paid': 'green'}.get(self.status, 'gray')
 
 
 class POItem(db.Model):

@@ -12,19 +12,33 @@
 <div class="stats">
   <div class="stat"><div class="stat-label">Total sales</div><div class="stat-value">{{ sales | length }}</div></div>
   <div class="stat"><div class="stat-label">Total revenue</div><div class="stat-value" style="color:var(--green-mid)">GHS {{ "%.2f" | format(total_revenue) }}</div></div>
-  <div class="stat"><div class="stat-label">Today's sales</div>
-    <div class="stat-value">
-      {% set today_sales = sales | selectattr('sale_date') | list %}
-      {{ sales | length }}
-    </div>
-  </div>
+  <div class="stat"><div class="stat-label">Today's sales</div><div class="stat-value">{{ sales | length }}</div></div>
 </div>
 
 <div class="topbar">
   <div style="font-size:0.875rem;color:var(--muted)">{{ sales | length }} transaction(s) recorded</div>
-  <a href="{{ url_for('sales.new_sale') }}" class="btn btn-green">+ New sale</a>
+  <div style="display:flex;gap:0.5rem;align-items:center;">
+    {% if current_user.role in ('admin', 'manager') %}
+      <a href="{{ url_for('sales.download_pdf') }}" class="btn btn-outline">⬇ Download PDF</a>
+    {% endif %}
+    <a href="{{ url_for('sales.new_sale') }}" class="btn btn-green">+ New sale</a>
+  </div>
 </div>
 
+<!-- PIE CHART CARD -->
+{% if monthly_data %}
+<div class="card" style="padding:1.5rem;margin-bottom:1.5rem;">
+  <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:600;">Monthly Sales Analysis</h3>
+  <div style="display:flex;align-items:center;gap:2rem;flex-wrap:wrap;">
+    <div style="width:260px;height:260px;">
+      <canvas id="salesPieChart"></canvas>
+    </div>
+    <div id="chartLegend" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- SALES TABLE -->
 <div class="card" style="padding:0;overflow:hidden;">
   {% if sales %}
   <table>
@@ -47,17 +61,19 @@
         <td style="font-family:monospace;font-weight:500">#{{ '%04d' % s.id }}</td>
         <td style="font-size:0.82rem">{{ s.sale_date.strftime('%d %b %Y, %I:%M %p') }}</td>
         <td>{{ s.cashier.full_name }}</td>
-        <td><span class="badge badge-gray">{{ s.item_count }} item(s)</span></td>
+        <td><span class="badge badge-gray">{{ s.items | length }} item(s)</span></td>
         <td>GHS {{ "%.2f" | format(s.total_amount) }}</td>
         <td>{% if s.discount > 0 %}<span style="color:var(--danger)">- GHS {{ "%.2f" | format(s.discount) }}</span>{% else %}—{% endif %}</td>
         <td style="font-weight:500;color:var(--green-mid)">GHS {{ "%.2f" | format(s.grand_total) }}</td>
         <td><span class="badge badge-green">{{ s.payment_method | capitalize }}</span></td>
         <td>
           <a href="{{ url_for('sales.receipt', sale_id=s.id) }}" class="btn btn-outline btn-sm">Receipt</a>
+          {% if current_user.role in ('admin', 'manager') %}
           <form method="POST" action="{{ url_for('sales.delete_sale', sale_id=s.id) }}" style="display:inline"
                 onsubmit="return confirm('Delete sale #{{ s.id }}? This cannot be undone.')">
             <button type="submit" class="btn btn-danger btn-sm">Delete</button>
           </form>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -71,4 +87,47 @@
   </div>
   {% endif %}
 </div>
+
+<!-- CHART.JS -->
+{% if monthly_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const monthlyData = {{ monthly_data | tojson }};
+  const labels = monthlyData.map(d => d.month);
+  const values = monthlyData.map(d => d.revenue);
+  const chartColors = [
+    '#1a5c2a','#2d8a47','#3dab5a','#5ec97a','#85d99a',
+    '#a8e6ba','#c3efd0','#1e3a5f','#2e5c99','#4a80c4',
+    '#6fa3e0','#9dc0ec'
+  ];
+
+  const ctx = document.getElementById('salesPieChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: chartColors.slice(0, labels.length),
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  const legend = document.getElementById('chartLegend');
+  labels.forEach((label, i) => {
+    legend.innerHTML += `
+      <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;">
+        <div style="width:14px;height:14px;border-radius:3px;background:${chartColors[i]};flex-shrink:0;"></div>
+        <span style="color:#555;">${label}</span>
+        <span style="font-weight:600;margin-left:auto;padding-left:1rem;">GHS ${values[i].toFixed(2)}</span>
+      </div>`;
+  });
+</script>
+{% endif %}
 {% endblock %}

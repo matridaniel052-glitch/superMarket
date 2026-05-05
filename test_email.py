@@ -17,4 +17,4 @@ result = send_low_stock_alert(
 if result:
     print("SUCCESS - Check your email inbox now!")
 else:
-    print("FAILED - Check your .env credentials")
+    print("FAILED - Check your .env credentials") 

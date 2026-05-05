@@ -3,8 +3,10 @@ from flask_login import login_user, logout_user, login_required, current_user
 from functools import wraps
 from app import db
 from app.models import User, Product, Category, Sale
+from datetime import date
 
 auth = Blueprint('auth', __name__)
+
 
 def admin_required(f):
     @wraps(f)
@@ -16,6 +18,7 @@ def admin_required(f):
             return redirect(url_for('auth.dashboard'))
         return f(*args, **kwargs)
     return decorated
+
 
 @auth.route('/')
 @auth.route('/login', methods=['GET', 'POST'])
@@ -33,6 +36,7 @@ def login():
         login_user(user, remember=remember)
         return redirect(url_for('auth.dashboard'))
     return render_template('login.html')
+
 
 @auth.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -74,48 +78,97 @@ def signup():
         return redirect(url_for('auth.login'))
     return render_template('signup.html')
 
+
 @auth.route('/dashboard')
 @login_required
 def dashboard():
-    product_count   = Product.query.count()
-    low_stock_count = Product.query.filter(Product.quantity <= Product.reorder_level).count()
-    cat_count       = Category.query.count()
-    all_sales       = Sale.query.all()
+    # ── Core product stats ───────────────────────────────────
+    product_count = Product.query.count()
+    cat_count     = Category.query.count()
+
+    # ── CRITICAL: products with quantity < 5 ────────────────
+    critical_products = Product.query.filter(
+        Product.quantity < 5,
+        Product.quantity > 0
+    ).order_by(Product.quantity.asc()).all()
+
+    # ── OUT OF STOCK: quantity = 0 ───────────────────────────
+    out_of_stock = Product.query.filter(
+        Product.quantity == 0
+    ).order_by(Product.name).all()
+
+    # ── BELOW REORDER LEVEL ──────────────────────────────────
+    low_stock_products = Product.query.filter(
+        Product.quantity <= Product.reorder_level,
+        Product.quantity > 0
+    ).order_by(Product.quantity.asc()).all()
+
+    # ── Total low stock count for badge ─────────────────────
+    low_stock_count = Product.query.filter(
+        Product.quantity <= Product.reorder_level
+    ).count()
+
+    # ── Sales stats based on role ────────────────────────────
+    today = date.today()
+
     if current_user.role == 'cashier':
         my_sales      = Sale.query.filter_by(cashier_id=current_user.id).all()
         sale_count    = len(my_sales)
         total_revenue = round(sum(s.grand_total for s in my_sales), 2)
+        today_sales   = [s for s in my_sales
+                         if s.sale_date.date() == today]
     else:
+        all_sales     = Sale.query.all()
         sale_count    = len(all_sales)
         total_revenue = round(sum(s.grand_total for s in all_sales), 2)
-    return render_template('dashboard.html',
-        product_count=product_count,
-        low_stock_count=low_stock_count,
-        cat_count=cat_count,
-        sale_count=sale_count,
-        total_revenue=total_revenue)
+        today_sales   = Sale.query.filter(
+            db.func.date(Sale.sale_date) == today
+        ).all()
 
-@auth.route('/logout', methods=['GET','POST'])
+    today_count   = len(today_sales)
+    today_revenue = round(sum(s.grand_total for s in today_sales), 2)
+
+    # ── Recent 5 sales ───────────────────────────────────────
+    recent_sales = Sale.query.order_by(
+        Sale.sale_date.desc()
+    ).limit(5).all()
+
+    return render_template('dashboard.html',
+        product_count     = product_count,
+        low_stock_count   = low_stock_count,
+        cat_count         = cat_count,
+        sale_count        = sale_count,
+        total_revenue     = total_revenue,
+        critical_products = critical_products,
+        out_of_stock      = out_of_stock,
+        low_stock_products = low_stock_products,
+        today_count       = today_count,
+        today_revenue     = today_revenue,
+        recent_sales      = recent_sales,
+    )
+
+
+@auth.route('/logout', methods=['GET', 'POST'])
 @login_required
 def logout():
     logout_user()
     flash('You have been logged out.', 'info')
     return redirect(url_for('auth.login'))
 
+
 @auth.route('/staff')
 @login_required
 @admin_required
 def staff():
-    from app.models import User
     from datetime import datetime
     users = User.query.order_by(User.full_name).all()
     return render_template('staff/index.html', users=users, now=datetime.utcnow())
+
 
 @auth.route('/staff/change-role/<int:user_id>', methods=['POST'])
 @login_required
 @admin_required
 def change_role(user_id):
-    from app.models import User
     u = User.query.get_or_404(user_id)
     new_role = request.form.get('role', 'cashier')
     u.role = new_role
@@ -123,11 +176,11 @@ def change_role(user_id):
     flash(f'{u.full_name} role updated to {new_role}.', 'success')
     return redirect(url_for('auth.staff'))
 
+
 @auth.route('/staff/delete/<int:user_id>', methods=['POST'])
 @login_required
 @admin_required
 def delete_user(user_id):
-    from app.models import User
     u = User.query.get_or_404(user_id)
     name = u.full_name
     db.session.delete(u)
@@ -135,13 +188,14 @@ def delete_user(user_id):
     flash(f'Staff member "{name}" deleted.', 'info')
     return redirect(url_for('auth.staff'))
 
+
 @auth.route('/change-password', methods=['GET', 'POST'])
 @login_required
 def change_password():
     if request.method == 'POST':
-        current_pw  = request.form.get('current_password', '')
-        new_pw      = request.form.get('new_password', '')
-        confirm_pw  = request.form.get('confirm_password', '')
+        current_pw = request.form.get('current_password', '')
+        new_pw     = request.form.get('new_password', '')
+        confirm_pw = request.form.get('confirm_password', '')
 
         if not current_user.check_password(current_pw):
             flash('Current password is incorrect.', 'error')

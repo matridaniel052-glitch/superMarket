@@ -1,59 +1,505 @@
 {% extends 'base.html' %}
 {% block title %}Dashboard — SuperMart IMS{% endblock %}
+
 {% block page_header %}
 <div class="page-header">
   <h1>Good day, {{ current_user.full_name.split()[0] }}!</h1>
   <p>
     {% if current_user.role == 'cashier' %}
-    Cashier dashboard — you can process sales and view your sales history
+      Cashier dashboard — process sales and view your history
     {% else %}
-    Admin dashboard — full system access
+      Admin dashboard — full system access
     {% endif %}
   </p>
 </div>
 {% endblock %}
+
 {% block content %}
 
+{# ============================================================
+   GLOBAL ALERT BANNERS — visible to ALL roles
+   ============================================================ #}
+
+{# --- CRITICAL: Out of stock banner --- #}
+{% if out_of_stock %}
+<div class="alert-banner alert-banner--critical" role="alert">
+  <div class="alert-banner__icon">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+  </div>
+  <div class="alert-banner__body">
+    <span class="alert-banner__title">
+      {{ out_of_stock | length }} product{{ 's' if out_of_stock | length != 1 }}
+      completely OUT OF STOCK
+    </span>
+    <span class="alert-banner__sub">
+      {% for p in out_of_stock[:3] %}
+        <span class="alert-tag">{{ p.name }}</span>
+      {% endfor %}
+      {% if out_of_stock | length > 3 %}
+        <span class="alert-tag alert-tag--more">
+          +{{ out_of_stock | length - 3 }} more
+        </span>
+      {% endif %}
+    </span>
+  </div>
+  <a href="{{ url_for('stock.alerts') }}" class="alert-banner__btn">
+    View all
+  </a>
+</div>
+{% endif %}
+
+{# --- WARNING: Critical low stock (qty < 5) banner --- #}
+{% if critical_products %}
+<div class="alert-banner alert-banner--warning" role="alert">
+  <div class="alert-banner__icon">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94
+               a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/>
+      <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+  </div>
+  <div class="alert-banner__body">
+    <span class="alert-banner__title">
+      {{ critical_products | length }} product{{ 's' if critical_products | length != 1 }}
+      critically low — below 5 units
+    </span>
+    <span class="alert-banner__sub">
+      {% for p in critical_products[:3] %}
+        <span class="alert-tag">{{ p.name }} ({{ p.quantity }} left)</span>
+      {% endfor %}
+      {% if critical_products | length > 3 %}
+        <span class="alert-tag alert-tag--more">
+          +{{ critical_products | length - 3 }} more
+        </span>
+      {% endif %}
+    </span>
+  </div>
+  <a href="{{ url_for('stock.alerts') }}" class="alert-banner__btn">
+    Restock now
+  </a>
+</div>
+{% endif %}
+
+
+{# ============================================================
+   CASHIER VIEW
+   ============================================================ #}
 {% if current_user.role == 'cashier' %}
-<!-- CASHIER VIEW -->
+
 <div class="stats">
-  <div class="stat"><div class="stat-label">My sales today</div><div class="stat-value" style="color:var(--green-mid)">{{ sale_count }}</div></div>
-  <div class="stat"><div class="stat-label">My total revenue</div><div class="stat-value" style="color:var(--green-mid)">GHS {{ "%.2f" | format(total_revenue) }}</div></div>
-</div>
-<div class="card" style="text-align:center;padding:2.5rem;">
-  <div style="font-size:3rem;margin-bottom:1rem;">🛒</div>
-  <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:700;margin-bottom:0.5rem;">Ready to process a sale?</div>
-  <div style="color:var(--muted);font-size:0.875rem;margin-bottom:1.5rem;">Click the button below to open the sales point and start adding products to the cart.</div>
-  <a href="{{ url_for('sales.new_sale') }}" class="btn btn-green" style="padding:14px 32px;font-size:1rem;">Start new sale</a>
-</div>
-<div style="margin-top:1rem;text-align:center;">
-  <a href="{{ url_for('sales.history') }}" class="btn btn-outline">View my sales history</a>
+  <div class="stat">
+    <div class="stat-label">My sales today</div>
+    <div class="stat-value" style="color:var(--green-mid)">{{ today_count }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Today's revenue</div>
+    <div class="stat-value" style="color:var(--green-mid)">
+      GHS {{ "%.2f" | format(today_revenue) }}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Total my sales</div>
+    <div class="stat-value" style="color:var(--green-mid)">{{ sale_count }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Total my revenue</div>
+    <div class="stat-value" style="color:var(--green-mid)">
+      GHS {{ "%.2f" | format(total_revenue) }}
+    </div>
+  </div>
 </div>
 
-{% else %}
-<!-- ADMIN VIEW -->
-<div class="stats">
-  <div class="stat"><div class="stat-label">Total products</div><div class="stat-value">{{ product_count }}</div></div>
-  <div class="stat"><div class="stat-label">Low stock alerts</div><div class="stat-value" style="color:#d97706">{{ low_stock_count }}</div></div>
-  <div class="stat"><div class="stat-label">Total sales</div><div class="stat-value" style="color:var(--green-mid)">{{ sale_count }}</div></div>
-  <div class="stat"><div class="stat-label">Total revenue</div><div class="stat-value" style="color:var(--green-mid)">GHS {{ "%.2f" | format(total_revenue) }}</div></div>
+<div class="card" style="text-align:center;padding:2.5rem;">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
+       stroke="var(--green-mid)" stroke-width="1.5" stroke-linecap="round"
+       style="margin-bottom:1rem;">
+    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72
+             a2 2 0 0 0 2-1.61L23 6H6"/>
+  </svg>
+  <div style="font-family:'Syne',sans-serif;font-size:1.3rem;
+              font-weight:700;margin-bottom:0.5rem;">
+    Ready to process a sale?
+  </div>
+  <div style="color:var(--muted);font-size:0.875rem;margin-bottom:1.5rem;">
+    Open the sales point and start adding products to the cart.
+  </div>
+  <a href="{{ url_for('sales.new_sale') }}"
+     class="btn btn-green"
+     style="padding:14px 32px;font-size:1rem;">
+    Start new sale
+  </a>
 </div>
+
+<div style="margin-top:1rem;text-align:center;">
+  <a href="{{ url_for('sales.history') }}" class="btn btn-outline">
+    View my sales history
+  </a>
+</div>
+
+
+{# ============================================================
+   ADMIN / STOCK MANAGER VIEW
+   ============================================================ #}
+{% else %}
+
+{# --- Stats row --- #}
+<div class="stats">
+  <div class="stat">
+    <div class="stat-label">Total products</div>
+    <div class="stat-value">{{ product_count }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Low stock alerts</div>
+    <div class="stat-value" style="color:#d97706">{{ low_stock_count }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Today's sales</div>
+    <div class="stat-value" style="color:var(--green-mid)">{{ today_count }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Today's revenue</div>
+    <div class="stat-value" style="color:var(--green-mid)">
+      GHS {{ "%.2f" | format(today_revenue) }}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Total sales</div>
+    <div class="stat-value" style="color:var(--green-mid)">{{ sale_count }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Total revenue</div>
+    <div class="stat-value" style="color:var(--green-mid)">
+      GHS {{ "%.2f" | format(total_revenue) }}
+    </div>
+  </div>
+</div>
+
+{# --- Quick actions --- #}
 <div class="card">
-  <h2 style="font-size:1rem;font-weight:500;margin-bottom:0.75rem;">Quick actions</h2>
+  <h2 style="font-size:1rem;font-weight:500;margin-bottom:0.75rem;">
+    Quick actions
+  </h2>
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
     <a href="{{ url_for('sales.new_sale') }}" class="btn btn-green">+ New sale</a>
     <a href="{{ url_for('products.add') }}" class="btn btn-outline">+ Add product</a>
     <a href="{{ url_for('sales.history') }}" class="btn btn-outline">Sales history</a>
     <a href="{{ url_for('reports.index') }}" class="btn btn-outline">Reports</a>
-    <a href="{{ url_for('stock.alerts') }}" class="btn btn-outline">⚠ Alerts</a>
+    <a href="{{ url_for('stock.alerts') }}" class="btn btn-outline">
+      Alerts
+      {% if low_stock_count > 0 %}
+        <span class="badge-pill">{{ low_stock_count }}</span>
+      {% endif %}
+    </a>
   </div>
 </div>
-{% if low_stock_count > 0 %}
-<div style="margin-top:1.25rem;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:1rem 1.25rem;">
-  <div style="font-weight:500;color:#d97706;margin-bottom:4px;">⚠ {{ low_stock_count }} product(s) are running low on stock</div>
-  <div style="font-size:0.85rem;color:#92400e;">Check your <a href="{{ url_for('stock.alerts') }}">reorder alerts</a> and reorder soon.</div>
+
+{# --- Critical stock detail table (< 5 units) --- #}
+{% if critical_products or out_of_stock %}
+<div class="card card--alert" style="margin-top:1.25rem;">
+  <div style="display:flex;justify-content:space-between;
+              align-items:center;margin-bottom:1rem;">
+    <h2 style="font-size:1rem;font-weight:600;color:#991b1b;margin:0;">
+      Products Needing Immediate Attention
+    </h2>
+    <a href="{{ url_for('stock.alerts') }}"
+       style="font-size:0.8rem;color:#dc2626;text-decoration:none;
+              font-weight:500;">
+      View all alerts
+    </a>
+  </div>
+
+  <table class="alert-table">
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>Category</th>
+        <th>Qty Left</th>
+        <th>Reorder At</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {# Out of stock rows first #}
+      {% for p in out_of_stock %}
+      <tr class="alert-row alert-row--oos">
+        <td><strong>{{ p.name }}</strong></td>
+        <td>{{ p.category.name if p.category else '—' }}</td>
+        <td><span class="qty-badge qty-badge--oos">0</span></td>
+        <td>{{ p.reorder_level }}</td>
+        <td><span class="status-chip status-chip--oos">Out of stock</span></td>
+        <td>
+          <a href="{{ url_for('products.edit', product_id=p.id) }}"
+             class="tbl-action-btn">
+            Restock
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+
+      {# Critical (1–4 units) rows #}
+      {% for p in critical_products %}
+      <tr class="alert-row alert-row--critical">
+        <td><strong>{{ p.name }}</strong></td>
+        <td>{{ p.category.name if p.category else '—' }}</td>
+        <td>
+          <span class="qty-badge qty-badge--critical">{{ p.quantity }}</span>
+        </td>
+        <td>{{ p.reorder_level }}</td>
+        <td>
+          <span class="status-chip status-chip--critical">
+            Critical — {{ p.quantity }} left
+          </span>
+        </td>
+        <td>
+          <a href="{{ url_for('products.edit', product_id=p.id) }}"
+             class="tbl-action-btn">
+            Update
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endif %}
+
+{# --- Recent sales --- #}
+{% if recent_sales %}
+<div class="card" style="margin-top:1.25rem;">
+  <div style="display:flex;justify-content:space-between;
+              align-items:center;margin-bottom:1rem;">
+    <h2 style="font-size:1rem;font-weight:500;margin:0;">Recent sales</h2>
+    <a href="{{ url_for('sales.history') }}"
+       style="font-size:0.8rem;color:var(--green-mid);
+              text-decoration:none;font-weight:500;">
+      View all
+    </a>
+  </div>
+  <table class="alert-table">
+    <thead>
+      <tr>
+        <th>Receipt #</th>
+        <th>Cashier</th>
+        <th>Items</th>
+        <th>Total</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in recent_sales %}
+      <tr>
+        <td><strong>{{ s.receipt_number if s.receipt_number else s.id }}</strong></td>
+        <td>{{ s.cashier.full_name if s.cashier else '—' }}</td>
+        <td>{{ s.items | length if s.items else '—' }}</td>
+        <td style="color:var(--green-mid);font-weight:600;">
+          GHS {{ "%.2f" | format(s.grand_total) }}
+        </td>
+        <td style="color:var(--muted);font-size:0.85rem;">
+          {{ s.sale_date.strftime('%d %b, %H:%M') }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endif %}
+
+{% endif %}{# end admin view #}
+
+
+{# ============================================================
+   SCOPED STYLES — alert banners, table chips, badges
+   ============================================================ #}
+<style>
+/* ---- Alert Banners ---------------------------------------- */
+.alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem 1.125rem;
+  border-radius: 10px;
+  margin-bottom: 0.75rem;
+  border: 1px solid transparent;
+  animation: slideDown 0.3s ease;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.alert-banner--critical {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+.alert-banner--warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.alert-banner__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.alert-banner__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.alert-banner__title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.alert-banner__sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.alert-banner__btn {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  text-decoration: none;
+  background: rgba(0,0,0,0.07);
+  color: inherit;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.alert-banner__btn:hover { background: rgba(0,0,0,0.13); }
+
+/* ---- Alert Tags ------------------------------------------- */
+.alert-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(0,0,0,0.08);
+}
+.alert-tag--more {
+  opacity: 0.7;
+}
+
+/* ---- Card alert variant ----------------------------------- */
+.card--alert {
+  border: 1px solid #fecaca !important;
+  background: #fff !important;
+}
+
+/* ---- Alert Table ------------------------------------------ */
+.alert-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.alert-table th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.alert-table td {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--border, #f3f4f6);
+  vertical-align: middle;
+}
+.alert-row:last-child td { border-bottom: none; }
+
+.alert-row--oos td      { background: #fff5f5; }
+.alert-row--critical td { background: #fffdf0; }
+
+/* ---- Qty Badges ------------------------------------------- */
+.qty-badge {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 2px 10px;
+  border-radius: 99px;
+  min-width: 28px;
+  text-align: center;
+}
+.qty-badge--oos      { background: #fee2e2; color: #dc2626; }
+.qty-badge--critical { background: #fef3c7; color: #d97706; }
+
+/* ---- Status Chips ----------------------------------------- */
+.status-chip {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 99px;
+}
+.status-chip--oos {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.status-chip--critical {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* ---- Table action button ---------------------------------- */
+.tbl-action-btn {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--green-mid);
+  text-decoration: none;
+  padding: 4px 10px;
+  border: 1px solid var(--green-mid);
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.tbl-action-btn:hover {
+  background: var(--green-mid);
+  color: #fff;
+}
+
+/* ---- Nav badge pill --------------------------------------- */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 99px;
+  padding: 0 5px;
+  margin-left: 5px;
+  vertical-align: middle;
+  animation: pulse-badge 2s infinite;
+}
+@keyframes pulse-badge {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.4); }
+  50%       { box-shadow: 0 0 0 5px rgba(220,38,38,0); }
+}
+
+/* ---- Responsive ------------------------------------------- */
+@media (max-width: 640px) {
+  .alert-banner  { flex-wrap: wrap; }
+  .alert-table th:nth-child(4),
+  .alert-table td:nth-child(4) { display: none; }
+}
+</style>
 
 {% endblock %}

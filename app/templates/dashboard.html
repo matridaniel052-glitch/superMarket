@@ -1,505 +1,711 @@
-{% extends 'base.html' %}
-{% block title %}Dashboard — SuperMart IMS{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SuperMart IMS — Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-{% block page_header %}
-<div class="page-header">
-  <h1>Good day, {{ current_user.full_name.split()[0] }}!</h1>
-  <p>
-    {% if current_user.role == 'cashier' %}
-      Cashier dashboard — process sales and view your history
-    {% else %}
-      Admin dashboard — full system access
+    :root {
+      --bg:          #0d0f1c;
+      --bg2:         #13162a;
+      --bg3:         #1a1e35;
+      --card:        #1e2240;
+      --card2:       #252a4a;
+      --border:      rgba(255,255,255,0.07);
+      --primary:     #6c63ff;
+      --primary-l:   #8b85ff;
+      --accent:      #ff6584;
+      --teal:        #00d4aa;
+      --amber:       #ffb347;
+      --text:        #e8eaf6;
+      --muted:       #8892b0;
+      --sidebar-w:   240px;
+      --radius:      14px;
+    }
+
+    html, body { height: 100%; font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text); }
+
+    /* ── LAYOUT ─────────────────────────────── */
+    .app { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── SIDEBAR ────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+
+    .sidebar-logo {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-logo .brand {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--primary-l);
+      letter-spacing: -0.3px;
+    }
+    .sidebar-logo .sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .sidebar-section {
+      padding: 18px 12px 4px;
+    }
+    .sidebar-section-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      padding: 0 8px;
+      margin-bottom: 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 9px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 500;
+      transition: all 0.18s;
+      margin-bottom: 2px;
+      position: relative;
+    }
+    .nav-item:hover { background: var(--bg3); color: var(--text); }
+    .nav-item.active {
+      background: linear-gradient(135deg, rgba(108,99,255,0.25), rgba(108,99,255,0.1));
+      color: var(--primary-l);
+      border: 1px solid rgba(108,99,255,0.3);
+    }
+    .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+    .nav-badge {
+      margin-left: auto;
+      background: var(--accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 20px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 16px 12px;
+      border-top: 1px solid var(--border);
+    }
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: var(--bg3);
+    }
+    .user-avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; color: #fff;
+      flex-shrink: 0;
+    }
+    .user-info .name { font-size: 12.5px; font-weight: 600; color: var(--text); }
+    .user-info .role {
+      font-size: 10px; color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+      text-transform: capitalize;
+    }
+
+    /* ── MAIN ───────────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── TOPBAR ─────────────────────────────── */
+    .topbar {
+      height: 64px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      flex-shrink: 0;
+    }
+    .topbar-left h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+    }
+    .topbar-left p { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+
+    .topbar-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: 'Sora', sans-serif;
+      cursor: pointer;
+      text-decoration: none;
+      border: none;
+      transition: all 0.18s;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--primary-l); transform: translateY(-1px); }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary-l); }
+
+    .date-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      color: var(--muted);
+      background: var(--bg3);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    /* ── CONTENT ────────────────────────────── */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px;
+    }
+
+    /* ── STAT CARDS ─────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+      animation: fadeUp 0.5s ease both;
+    }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+    .stat-card.purple::before { background: linear-gradient(90deg, var(--primary), var(--primary-l)); }
+    .stat-card.pink::before   { background: linear-gradient(90deg, var(--accent), #ff8fa3); }
+    .stat-card.teal::before   { background: linear-gradient(90deg, var(--teal), #00f5c8); }
+    .stat-card.amber::before  { background: linear-gradient(90deg, var(--amber), #ffd080); }
+
+    .stat-card:nth-child(1) { animation-delay: 0.05s; }
+    .stat-card:nth-child(2) { animation-delay: 0.10s; }
+    .stat-card:nth-child(3) { animation-delay: 0.15s; }
+    .stat-card:nth-child(4) { animation-delay: 0.20s; }
+
+    .stat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .stat-label { font-size: 12px; color: var(--muted); font-weight: 500; letter-spacing: 0.2px; }
+    .stat-icon {
+      width: 36px; height: 36px;
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px;
+    }
+    .stat-card.purple .stat-icon { background: rgba(108,99,255,0.15); }
+    .stat-card.pink   .stat-icon { background: rgba(255,101,132,0.15); }
+    .stat-card.teal   .stat-icon { background: rgba(0,212,170,0.15); }
+    .stat-card.amber  .stat-icon { background: rgba(255,179,71,0.15); }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .stat-card.purple .stat-value { color: var(--primary-l); }
+    .stat-card.pink   .stat-value { color: #ff8fa3; }
+    .stat-card.teal   .stat-value { color: var(--teal); }
+    .stat-card.amber  .stat-value { color: var(--amber); }
+
+    .stat-sub { font-size: 11.5px; color: var(--muted); }
+    .stat-sub span { color: var(--teal); font-weight: 600; }
+
+    /* ── CHARTS ROW ─────────────────────────── */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      animation: fadeUp 0.5s ease 0.25s both;
+    }
+    .chart-card:last-child { animation-delay: 0.3s; }
+
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .chart-title { font-size: 14px; font-weight: 600; }
+    .chart-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .chart-pill {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+    }
+    .pill-purple { background: rgba(108,99,255,0.15); color: var(--primary-l); }
+    .pill-teal   { background: rgba(0,212,170,0.15);  color: var(--teal); }
+
+    /* ── BOTTOM ROW ─────────────────────────── */
+    .bottom-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      animation: fadeUp 0.5s ease 0.35s both;
+    }
+    .panel:last-child { animation-delay: 0.4s; }
+    .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .panel-title { font-size: 14px; font-weight: 600; }
+    .view-all {
+      font-size: 12px;
+      color: var(--primary-l);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .view-all:hover { text-decoration: underline; }
+
+    /* Recent Sales Table */
+    .mini-table { width: 100%; border-collapse: collapse; }
+    .mini-table th {
+      font-size: 10.5px;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      padding: 0 0 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .mini-table td {
+      padding: 10px 0;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    .mini-table tr:last-child td { border-bottom: none; }
+    .receipt-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--primary-l);
+    }
+    .pay-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .pay-cash   { background: rgba(0,212,170,0.15); color: var(--teal); }
+    .pay-card   { background: rgba(108,99,255,0.15); color: var(--primary-l); }
+    .pay-momo   { background: rgba(255,179,71,0.15); color: var(--amber); }
+    .amount-cell { font-weight: 600; color: var(--teal); font-family: 'JetBrains Mono', monospace; }
+
+    /* Stock Alerts */
+    .stock-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .stock-item:last-child { border-bottom: none; }
+    .stock-name { font-size: 13px; font-weight: 500; }
+    .stock-cat  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .stock-qty  {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+    .qty-critical { background: rgba(255,101,132,0.15); color: var(--accent); }
+    .qty-low      { background: rgba(255,179,71,0.15);  color: var(--amber); }
+    .qty-zero     { background: rgba(255,50,50,0.15);   color: #ff5555; }
+    .empty-state  { text-align: center; color: var(--muted); font-size: 13px; padding: 20px 0; }
+
+    /* ── ANIMATIONS ─────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── SCROLLBAR ──────────────────────────── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--card2); border-radius: 4px; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ══ SIDEBAR ══════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="brand">⬡ SuperMart IMS</div>
+      <div class="sub">v2.0 · inventory system</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Core</div>
+      <a href="{{ url_for('auth.dashboard') }}" class="nav-item active">
+        <span class="icon">📊</span> Dashboard
+      </a>
+      <a href="{{ url_for('sales.new_sale') }}" class="nav-item">
+        <span class="icon">🛒</span> New Sale
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Sales</div>
+      <a href="{{ url_for('sales.history') }}" class="nav-item">
+        <span class="icon">🧾</span> History
+      </a>
+      <a href="{{ url_for('reports.index') }}" class="nav-item">
+        <span class="icon">📈</span> Reports
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Inventory</div>
+      <a href="{{ url_for('products.index') }}" class="nav-item">
+        <span class="icon">📦</span> Products
+        {% if low_stock_count > 0 %}
+        <span class="nav-badge">{{ low_stock_count }}</span>
+        {% endif %}
+      </a>
+      <a href="{{ url_for('products.categories') }}" class="nav-item">
+        <span class="icon">🗂️</span> Categories
+      </a>
+      {% if current_user.role in ['admin', 'stock_manager'] %}
+      <a href="{{ url_for('stock.index') }}" class="nav-item">
+        <span class="icon">📋</span> Stock Logs
+      </a>
+      <a href="{{ url_for('suppliers.index') }}" class="nav-item">
+        <span class="icon">🚚</span> Suppliers
+      </a>
+      {% endif %}
+    </div>
+
+    {% if current_user.role == 'admin' %}
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Admin</div>
+      <a href="{{ url_for('auth.staff') }}" class="nav-item">
+        <span class="icon">👥</span> Staff
+      </a>
+    </div>
     {% endif %}
-  </p>
-</div>
-{% endblock %}
 
-{% block content %}
-
-{# ============================================================
-   GLOBAL ALERT BANNERS — visible to ALL roles
-   ============================================================ #}
-
-{# --- CRITICAL: Out of stock banner --- #}
-{% if out_of_stock %}
-<div class="alert-banner alert-banner--critical" role="alert">
-  <div class="alert-banner__icon">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-         stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="12" y1="8" x2="12" y2="12"/>
-      <line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg>
-  </div>
-  <div class="alert-banner__body">
-    <span class="alert-banner__title">
-      {{ out_of_stock | length }} product{{ 's' if out_of_stock | length != 1 }}
-      completely OUT OF STOCK
-    </span>
-    <span class="alert-banner__sub">
-      {% for p in out_of_stock[:3] %}
-        <span class="alert-tag">{{ p.name }}</span>
-      {% endfor %}
-      {% if out_of_stock | length > 3 %}
-        <span class="alert-tag alert-tag--more">
-          +{{ out_of_stock | length - 3 }} more
-        </span>
-      {% endif %}
-    </span>
-  </div>
-  <a href="{{ url_for('stock.alerts') }}" class="alert-banner__btn">
-    View all
-  </a>
-</div>
-{% endif %}
-
-{# --- WARNING: Critical low stock (qty < 5) banner --- #}
-{% if critical_products %}
-<div class="alert-banner alert-banner--warning" role="alert">
-  <div class="alert-banner__icon">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-         stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94
-               a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-      <line x1="12" y1="9" x2="12" y2="13"/>
-      <line x1="12" y1="17" x2="12.01" y2="17"/>
-    </svg>
-  </div>
-  <div class="alert-banner__body">
-    <span class="alert-banner__title">
-      {{ critical_products | length }} product{{ 's' if critical_products | length != 1 }}
-      critically low — below 5 units
-    </span>
-    <span class="alert-banner__sub">
-      {% for p in critical_products[:3] %}
-        <span class="alert-tag">{{ p.name }} ({{ p.quantity }} left)</span>
-      {% endfor %}
-      {% if critical_products | length > 3 %}
-        <span class="alert-tag alert-tag--more">
-          +{{ critical_products | length - 3 }} more
-        </span>
-      {% endif %}
-    </span>
-  </div>
-  <a href="{{ url_for('stock.alerts') }}" class="alert-banner__btn">
-    Restock now
-  </a>
-</div>
-{% endif %}
-
-
-{# ============================================================
-   CASHIER VIEW
-   ============================================================ #}
-{% if current_user.role == 'cashier' %}
-
-<div class="stats">
-  <div class="stat">
-    <div class="stat-label">My sales today</div>
-    <div class="stat-value" style="color:var(--green-mid)">{{ today_count }}</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Today's revenue</div>
-    <div class="stat-value" style="color:var(--green-mid)">
-      GHS {{ "%.2f" | format(today_revenue) }}
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        <div class="user-avatar">{{ current_user.full_name[0].upper() }}</div>
+        <div class="user-info">
+          <div class="name">{{ current_user.full_name.split()[0] }}</div>
+          <div class="role">{{ current_user.role }}</div>
+        </div>
+        <a href="{{ url_for('auth.logout') }}" style="margin-left:auto; color:var(--muted); text-decoration:none; font-size:16px;" title="Logout">⏻</a>
+      </div>
     </div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Total my sales</div>
-    <div class="stat-value" style="color:var(--green-mid)">{{ sale_count }}</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Total my revenue</div>
-    <div class="stat-value" style="color:var(--green-mid)">
-      GHS {{ "%.2f" | format(total_revenue) }}
+  </aside>
+
+  <!-- ══ MAIN ═════════════════════════════════════ -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <h1>Good day, {{ current_user.full_name.split()[0] }}! 👋</h1>
+        <p>{{ current_user.role|capitalize }} dashboard — here's what's happening today</p>
+      </div>
+      <div class="topbar-right">
+        <div class="date-badge" id="live-date">--</div>
+        <a href="{{ url_for('sales.new_sale') }}" class="topbar-btn btn-primary">＋ New Sale</a>
+        <a href="{{ url_for('auth.change_password') }}" class="topbar-btn btn-outline">⚙</a>
+      </div>
     </div>
-  </div>
-</div>
 
-<div class="card" style="text-align:center;padding:2.5rem;">
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
-       stroke="var(--green-mid)" stroke-width="1.5" stroke-linecap="round"
-       style="margin-bottom:1rem;">
-    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
-    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72
-             a2 2 0 0 0 2-1.61L23 6H6"/>
-  </svg>
-  <div style="font-family:'Syne',sans-serif;font-size:1.3rem;
-              font-weight:700;margin-bottom:0.5rem;">
-    Ready to process a sale?
-  </div>
-  <div style="color:var(--muted);font-size:0.875rem;margin-bottom:1.5rem;">
-    Open the sales point and start adding products to the cart.
-  </div>
-  <a href="{{ url_for('sales.new_sale') }}"
-     class="btn btn-green"
-     style="padding:14px 32px;font-size:1rem;">
-    Start new sale
-  </a>
-</div>
+    <!-- Content -->
+    <div class="content">
 
-<div style="margin-top:1rem;text-align:center;">
-  <a href="{{ url_for('sales.history') }}" class="btn btn-outline">
-    View my sales history
-  </a>
-</div>
+      <!-- ── STAT CARDS ── -->
+      <div class="stats-grid">
+        <div class="stat-card purple">
+          <div class="stat-header">
+            <div class="stat-label">Total Products</div>
+            <div class="stat-icon">📦</div>
+          </div>
+          <div class="stat-value">{{ product_count }}</div>
+          <div class="stat-sub">{{ cat_count }} categories</div>
+        </div>
 
+        <div class="stat-card pink">
+          <div class="stat-header">
+            <div class="stat-label">Low Stock Alerts</div>
+            <div class="stat-icon">⚠️</div>
+          </div>
+          <div class="stat-value">{{ low_stock_count }}</div>
+          <div class="stat-sub">{% if low_stock_count > 0 %}<span>Action needed</span>{% else %}All levels OK{% endif %}</div>
+        </div>
 
-{# ============================================================
-   ADMIN / STOCK MANAGER VIEW
-   ============================================================ #}
-{% else %}
+        <div class="stat-card teal">
+          <div class="stat-header">
+            <div class="stat-label">Today's Sales</div>
+            <div class="stat-icon">🛒</div>
+          </div>
+          <div class="stat-value">{{ today_count }}</div>
+          <div class="stat-sub">GHS {{ "%.2f"|format(today_revenue) }} today</div>
+        </div>
 
-{# --- Stats row --- #}
-<div class="stats">
-  <div class="stat">
-    <div class="stat-label">Total products</div>
-    <div class="stat-value">{{ product_count }}</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Low stock alerts</div>
-    <div class="stat-value" style="color:#d97706">{{ low_stock_count }}</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Today's sales</div>
-    <div class="stat-value" style="color:var(--green-mid)">{{ today_count }}</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Today's revenue</div>
-    <div class="stat-value" style="color:var(--green-mid)">
-      GHS {{ "%.2f" | format(today_revenue) }}
-    </div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Total sales</div>
-    <div class="stat-value" style="color:var(--green-mid)">{{ sale_count }}</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Total revenue</div>
-    <div class="stat-value" style="color:var(--green-mid)">
-      GHS {{ "%.2f" | format(total_revenue) }}
-    </div>
-  </div>
-</div>
+        <div class="stat-card amber">
+          <div class="stat-header">
+            <div class="stat-label">Total Revenue</div>
+            <div class="stat-icon">💰</div>
+          </div>
+          <div class="stat-value">{{ "{:,.0f}".format(total_revenue) }}</div>
+          <div class="stat-sub">GHS · {{ sale_count }} transactions</div>
+        </div>
+      </div>
 
-{# --- Quick actions --- #}
-<div class="card">
-  <h2 style="font-size:1rem;font-weight:500;margin-bottom:0.75rem;">
-    Quick actions
-  </h2>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;">
-    <a href="{{ url_for('sales.new_sale') }}" class="btn btn-green">+ New sale</a>
-    <a href="{{ url_for('products.add') }}" class="btn btn-outline">+ Add product</a>
-    <a href="{{ url_for('sales.history') }}" class="btn btn-outline">Sales history</a>
-    <a href="{{ url_for('reports.index') }}" class="btn btn-outline">Reports</a>
-    <a href="{{ url_for('stock.alerts') }}" class="btn btn-outline">
-      Alerts
-      {% if low_stock_count > 0 %}
-        <span class="badge-pill">{{ low_stock_count }}</span>
-      {% endif %}
-    </a>
-  </div>
-</div>
+      <!-- ── CHARTS ── -->
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Daily Sales — Last 7 Days</div>
+              <div class="chart-sub">Revenue trend by day</div>
+            </div>
+            <span class="chart-pill pill-purple">GHS</span>
+          </div>
+          <canvas id="lineChart" height="110"></canvas>
+        </div>
 
-{# --- Critical stock detail table (< 5 units) --- #}
-{% if critical_products or out_of_stock %}
-<div class="card card--alert" style="margin-top:1.25rem;">
-  <div style="display:flex;justify-content:space-between;
-              align-items:center;margin-bottom:1rem;">
-    <h2 style="font-size:1rem;font-weight:600;color:#991b1b;margin:0;">
-      Products Needing Immediate Attention
-    </h2>
-    <a href="{{ url_for('stock.alerts') }}"
-       style="font-size:0.8rem;color:#dc2626;text-decoration:none;
-              font-weight:500;">
-      View all alerts
-    </a>
-  </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Monthly Revenue</div>
+              <div class="chart-sub">Breakdown by month</div>
+            </div>
+            <span class="chart-pill pill-teal">Bar</span>
+          </div>
+          <canvas id="barChart" height="140"></canvas>
+        </div>
+      </div>
 
-  <table class="alert-table">
-    <thead>
-      <tr>
-        <th>Product</th>
-        <th>Category</th>
-        <th>Qty Left</th>
-        <th>Reorder At</th>
-        <th>Status</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      {# Out of stock rows first #}
-      {% for p in out_of_stock %}
-      <tr class="alert-row alert-row--oos">
-        <td><strong>{{ p.name }}</strong></td>
-        <td>{{ p.category.name if p.category else '—' }}</td>
-        <td><span class="qty-badge qty-badge--oos">0</span></td>
-        <td>{{ p.reorder_level }}</td>
-        <td><span class="status-chip status-chip--oos">Out of stock</span></td>
-        <td>
-          <a href="{{ url_for('products.edit', product_id=p.id) }}"
-             class="tbl-action-btn">
-            Restock
-          </a>
-        </td>
-      </tr>
-      {% endfor %}
+      <!-- ── BOTTOM ROW ── -->
+      <div class="bottom-row">
 
-      {# Critical (1–4 units) rows #}
-      {% for p in critical_products %}
-      <tr class="alert-row alert-row--critical">
-        <td><strong>{{ p.name }}</strong></td>
-        <td>{{ p.category.name if p.category else '—' }}</td>
-        <td>
-          <span class="qty-badge qty-badge--critical">{{ p.quantity }}</span>
-        </td>
-        <td>{{ p.reorder_level }}</td>
-        <td>
-          <span class="status-chip status-chip--critical">
-            Critical — {{ p.quantity }} left
-          </span>
-        </td>
-        <td>
-          <a href="{{ url_for('products.edit', product_id=p.id) }}"
-             class="tbl-action-btn">
-            Update
-          </a>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
+        <!-- Recent Sales -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Recent Transactions</div>
+            <a href="{{ url_for('sales.history') }}" class="view-all">View all →</a>
+          </div>
+          {% if recent_sales %}
+          <table class="mini-table">
+            <thead>
+              <tr>
+                <th>Receipt</th>
+                <th>Cashier</th>
+                <th>Payment</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in recent_sales %}
+              <tr>
+                <td><span class="receipt-id">#{{ '%04d'|format(s.id) }}</span></td>
+                <td>{{ s.cashier.full_name.split()[0] }}</td>
+                <td>
+                  <span class="pay-badge
+                    {% if s.payment_method == 'cash' %}pay-cash
+                    {% elif s.payment_method == 'card' %}pay-card
+                    {% else %}pay-momo{% endif %}">
+                    {{ s.payment_method }}
+                  </span>
+                </td>
+                <td class="amount-cell">{{ "%.2f"|format(s.grand_total) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="empty-state">No sales recorded yet.</div>
+          {% endif %}
+        </div>
 
-{# --- Recent sales --- #}
-{% if recent_sales %}
-<div class="card" style="margin-top:1.25rem;">
-  <div style="display:flex;justify-content:space-between;
-              align-items:center;margin-bottom:1rem;">
-    <h2 style="font-size:1rem;font-weight:500;margin:0;">Recent sales</h2>
-    <a href="{{ url_for('sales.history') }}"
-       style="font-size:0.8rem;color:var(--green-mid);
-              text-decoration:none;font-weight:500;">
-      View all
-    </a>
-  </div>
-  <table class="alert-table">
-    <thead>
-      <tr>
-        <th>Receipt #</th>
-        <th>Cashier</th>
-        <th>Items</th>
-        <th>Total</th>
-        <th>Date</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for s in recent_sales %}
-      <tr>
-        <td><strong>{{ s.receipt_number if s.receipt_number else s.id }}</strong></td>
-        <td>{{ s.cashier.full_name if s.cashier else '—' }}</td>
-        <td>{{ s.items | length if s.items else '—' }}</td>
-        <td style="color:var(--green-mid);font-weight:600;">
-          GHS {{ "%.2f" | format(s.grand_total) }}
-        </td>
-        <td style="color:var(--muted);font-size:0.85rem;">
-          {{ s.sale_date.strftime('%d %b, %H:%M') }}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
+        <!-- Stock Alerts -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Stock Alerts</div>
+            <a href="{{ url_for('products.index') }}" class="view-all">Manage →</a>
+          </div>
 
-{% endif %}{# end admin view #}
+          {% set all_alerts = (out_of_stock + critical_products + low_stock_products)|unique|list %}
+          {% if all_alerts %}
+            {% for p in all_alerts[:8] %}
+            <div class="stock-item">
+              <div>
+                <div class="stock-name">{{ p.name }}</div>
+                <div class="stock-cat">Reorder at {{ p.reorder_level }} units</div>
+              </div>
+              <span class="stock-qty
+                {% if p.quantity == 0 %}qty-zero
+                {% elif p.quantity < 5 %}qty-critical
+                {% else %}qty-low{% endif %}">
+                {% if p.quantity == 0 %}OUT{% else %}{{ p.quantity }}{% endif %}
+              </span>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="empty-state">✅ All products are well stocked!</div>
+          {% endif %}
+        </div>
 
+      </div><!-- /bottom-row -->
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
 
-{# ============================================================
-   SCOPED STYLES — alert banners, table chips, badges
-   ============================================================ #}
-<style>
-/* ---- Alert Banners ---------------------------------------- */
-.alert-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  padding: 0.875rem 1.125rem;
-  border-radius: 10px;
-  margin-bottom: 0.75rem;
-  border: 1px solid transparent;
-  animation: slideDown 0.3s ease;
-}
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+<script>
+  // ── Live date ─────────────────────────────────
+  const el = document.getElementById('live-date');
+  const update = () => {
+    el.textContent = new Date().toLocaleDateString('en-GH', {
+      weekday:'short', day:'numeric', month:'short', year:'numeric'
+    });
+  };
+  update(); setInterval(update, 60000);
 
-.alert-banner--critical {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
-}
-.alert-banner--warning {
-  background: #fffbeb;
-  border-color: #fde68a;
-  color: #92400e;
-}
+  // ── Chart defaults ────────────────────────────
+  Chart.defaults.color = '#8892b0';
+  Chart.defaults.font.family = "'Sora', sans-serif";
+  Chart.defaults.font.size = 11;
 
-.alert-banner__icon {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-}
-.alert-banner__body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.alert-banner__title {
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-.alert-banner__sub {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.alert-banner__btn {
-  flex-shrink: 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 6px 14px;
-  border-radius: 6px;
-  text-decoration: none;
-  background: rgba(0,0,0,0.07);
-  color: inherit;
-  white-space: nowrap;
-  transition: background 0.15s;
-}
-.alert-banner__btn:hover { background: rgba(0,0,0,0.13); }
+  const days   = {{ days_labels | tojson }};
+  const totals = {{ days_totals | tojson }};
+  const monthly = {{ monthly_data | tojson }};
 
-/* ---- Alert Tags ------------------------------------------- */
-.alert-tag {
-  display: inline-block;
-  font-size: 0.75rem;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 99px;
-  background: rgba(0,0,0,0.08);
-}
-.alert-tag--more {
-  opacity: 0.7;
-}
+  // ── Line chart — Daily sales ──────────────────
+  new Chart(document.getElementById('lineChart'), {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [{
+        label: 'Revenue (GHS)',
+        data: totals,
+        borderColor: '#6c63ff',
+        backgroundColor: 'rgba(108,99,255,0.12)',
+        borderWidth: 2.5,
+        pointBackgroundColor: '#8b85ff',
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false } },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          border: { display: false },
+          ticks: { callback: v => 'GHS ' + v.toLocaleString() }
+        }
+      }
+    }
+  });
 
-/* ---- Card alert variant ----------------------------------- */
-.card--alert {
-  border: 1px solid #fecaca !important;
-  background: #fff !important;
-}
-
-/* ---- Alert Table ------------------------------------------ */
-.alert-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-}
-.alert-table th {
-  text-align: left;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  border-bottom: 1px solid var(--border, #e5e7eb);
-}
-.alert-table td {
-  padding: 0.625rem 0.75rem;
-  border-bottom: 1px solid var(--border, #f3f4f6);
-  vertical-align: middle;
-}
-.alert-row:last-child td { border-bottom: none; }
-
-.alert-row--oos td      { background: #fff5f5; }
-.alert-row--critical td { background: #fffdf0; }
-
-/* ---- Qty Badges ------------------------------------------- */
-.qty-badge {
-  display: inline-block;
-  font-weight: 700;
-  font-size: 0.8rem;
-  padding: 2px 10px;
-  border-radius: 99px;
-  min-width: 28px;
-  text-align: center;
-}
-.qty-badge--oos      { background: #fee2e2; color: #dc2626; }
-.qty-badge--critical { background: #fef3c7; color: #d97706; }
-
-/* ---- Status Chips ----------------------------------------- */
-.status-chip {
-  display: inline-block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 99px;
-}
-.status-chip--oos {
-  background: #fee2e2;
-  color: #991b1b;
-}
-.status-chip--critical {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-/* ---- Table action button ---------------------------------- */
-.tbl-action-btn {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--green-mid);
-  text-decoration: none;
-  padding: 4px 10px;
-  border: 1px solid var(--green-mid);
-  border-radius: 6px;
-  transition: all 0.15s;
-}
-.tbl-action-btn:hover {
-  background: var(--green-mid);
-  color: #fff;
-}
-
-/* ---- Nav badge pill --------------------------------------- */
-.badge-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #dc2626;
-  color: #fff;
-  font-size: 0.65rem;
-  font-weight: 700;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 99px;
-  padding: 0 5px;
-  margin-left: 5px;
-  vertical-align: middle;
-  animation: pulse-badge 2s infinite;
-}
-@keyframes pulse-badge {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.4); }
-  50%       { box-shadow: 0 0 0 5px rgba(220,38,38,0); }
-}
-
-/* ---- Responsive ------------------------------------------- */
-@media (max-width: 640px) {
-  .alert-banner  { flex-wrap: wrap; }
-  .alert-table th:nth-child(4),
-  .alert-table td:nth-child(4) { display: none; }
-}
-</style>
-
-{% endblock %}
+  // ── Bar chart — Monthly revenue ───────────────
+  new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: monthly.map(m => m.month),
+      datasets: [{
+        label: 'Revenue (GHS)',
+        data: monthly.map(m => m.revenue),
+        backgroundColor: monthly.map((_, i) =>
+          i === monthly.length - 1
+            ? 'rgba(0,212,170,0.85)'
+            : 'rgba(108,99,255,0.5)'
+        ),
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, border: { display: false } },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          border: { display: false },
+          ticks: { callback: v => 'GHS ' + v.toLocaleString() }
+        }
+      }
+    }
+  });
+</script>
+</body>
+</html>

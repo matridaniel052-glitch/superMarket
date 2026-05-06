@@ -2,8 +2,8 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_user, logout_user, login_required, current_user
 from functools import wraps
 from app import db
-from app.models import User, Product, Category, Sale
-from datetime import date
+from app.models import User, Product, Category, Sale, SaleItem
+from datetime import date, datetime, timedelta
 from sqlalchemy import func
 
 auth = Blueprint('auth', __name__)
@@ -85,14 +85,14 @@ def signup():
 def dashboard():
     today = date.today()
 
-    # ── Core counts — single cheap COUNT queries ─────────────
-    product_count = Product.query.count()
-    cat_count     = Category.query.count()
+    # ── Core counts ──────────────────────────────────────────
+    product_count   = Product.query.count()
+    cat_count       = Category.query.count()
     low_stock_count = Product.query.filter(
         Product.quantity <= Product.reorder_level
     ).count()
 
-    # ── Stock alerts — DB-filtered, no Python loops ──────────
+    # ── Stock alerts ─────────────────────────────────────────
     critical_products = Product.query.filter(
         Product.quantity < 5,
         Product.quantity > 0
@@ -107,18 +107,14 @@ def dashboard():
         Product.quantity > 0
     ).order_by(Product.quantity.asc()).limit(20).all()
 
-    # ── Sales stats — use SQL SUM instead of Python loops ────
-    # FIX: Previously loaded ALL sales into memory, summed in Python.
-    # Now: one aggregate query per stat — no objects loaded at all.
+    # ── Sales stats via SQL SUM — no Python loops ────────────
     if current_user.role == 'cashier':
-        # All-time stats for this cashier
         row = db.session.query(
             func.count(Sale.id),
             func.coalesce(func.sum(Sale.total_amount), 0)
         ).filter(Sale.cashier_id == current_user.id).one()
         sale_count, total_revenue = int(row[0]), round(float(row[1]), 2)
 
-        # Today stats for this cashier
         today_row = db.session.query(
             func.count(Sale.id),
             func.coalesce(func.sum(Sale.total_amount), 0)
@@ -127,14 +123,12 @@ def dashboard():
             func.date(Sale.sale_date) == today
         ).one()
     else:
-        # All-time stats for all cashiers
         row = db.session.query(
             func.count(Sale.id),
             func.coalesce(func.sum(Sale.total_amount), 0)
         ).one()
         sale_count, total_revenue = int(row[0]), round(float(row[1]), 2)
 
-        # Today stats for all cashiers
         today_row = db.session.query(
             func.count(Sale.id),
             func.coalesce(func.sum(Sale.total_amount), 0)
@@ -143,10 +137,38 @@ def dashboard():
     today_count   = int(today_row[0])
     today_revenue = round(float(today_row[1]), 2)
 
-    # ── Recent 5 sales — lightweight, no change needed ───────
+    # ── Recent 5 sales ───────────────────────────────────────
     recent_sales = Sale.query.order_by(
         Sale.sale_date.desc()
     ).limit(5).all()
+
+    # ── Last 7 days chart data ───────────────────────────────
+    days_labels = []
+    days_totals = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        total = db.session.query(
+            func.coalesce(func.sum(Sale.total_amount), 0)
+        ).filter(func.date(Sale.sale_date) == day).scalar()
+        days_labels.append(day.strftime('%d %b'))
+        days_totals.append(round(float(total), 2))
+
+    # ── Monthly revenue chart data ───────────────────────────
+    monthly_rows = db.session.query(
+        func.strftime('%m-%Y', Sale.sale_date).label('month_key'),
+        func.sum(Sale.total_amount).label('revenue')
+    ).group_by('month_key').order_by('month_key').all()
+
+    def _fmt_month(mk):
+        try:
+            return datetime.strptime(mk, '%m-%Y').strftime('%b %Y')
+        except Exception:
+            return mk
+
+    monthly_data = [
+        {'month': _fmt_month(r.month_key), 'revenue': round(float(r.revenue), 2)}
+        for r in monthly_rows
+    ]
 
     return render_template('dashboard.html',
         product_count      = product_count,
@@ -160,6 +182,9 @@ def dashboard():
         today_count        = today_count,
         today_revenue      = today_revenue,
         recent_sales       = recent_sales,
+        days_labels        = days_labels,
+        days_totals        = days_totals,
+        monthly_data       = monthly_data,
     )
 
 
@@ -175,7 +200,6 @@ def logout():
 @login_required
 @admin_required
 def staff():
-    from datetime import datetime
     users = User.query.order_by(User.full_name).all()
     return render_template('staff/index.html', users=users, now=datetime.utcnow())
 

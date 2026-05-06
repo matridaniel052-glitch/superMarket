@@ -51,7 +51,6 @@ def signup():
         staff_id   = request.form.get('staff_id', '').strip()
         department = request.form.get('department', 'Cashier')
         role       = 'cashier'
-
         if not full_name or not email or not password or not staff_id:
             flash('All required fields must be filled in.', 'error')
             return redirect(url_for('auth.signup'))
@@ -67,11 +66,7 @@ def signup():
         if User.query.filter_by(staff_id=staff_id).first():
             flash('That Staff ID is already registered.', 'error')
             return redirect(url_for('auth.signup'))
-
-        new_user = User(
-            full_name=full_name, email=email, role=role,
-            staff_id=staff_id, department=department
-        )
+        new_user = User(full_name=full_name, email=email, role=role, staff_id=staff_id, department=department)
         new_user.set_password(password)
         db.session.add(new_user)
         db.session.commit()
@@ -84,108 +79,42 @@ def signup():
 @login_required
 def dashboard():
     today = date.today()
-
-    # ── Core counts ──────────────────────────────────────────
     product_count   = Product.query.count()
     cat_count       = Category.query.count()
-    low_stock_count = Product.query.filter(
-        Product.quantity <= Product.reorder_level
-    ).count()
-
-    # ── Stock alerts ─────────────────────────────────────────
-    critical_products = Product.query.filter(
-        Product.quantity < 5,
-        Product.quantity > 0
-    ).order_by(Product.quantity.asc()).limit(20).all()
-
-    out_of_stock = Product.query.filter(
-        Product.quantity == 0
-    ).order_by(Product.name).limit(20).all()
-
-    low_stock_products = Product.query.filter(
-        Product.quantity <= Product.reorder_level,
-        Product.quantity > 0
-    ).order_by(Product.quantity.asc()).limit(20).all()
-
-    # ── Sales stats via SQL SUM — no Python loops ────────────
+    low_stock_count = Product.query.filter(Product.quantity <= Product.reorder_level).count()
+    critical_products = Product.query.filter(Product.quantity < 5, Product.quantity > 0).order_by(Product.quantity.asc()).limit(20).all()
+    out_of_stock      = Product.query.filter(Product.quantity == 0).order_by(Product.name).limit(20).all()
+    low_stock_products= Product.query.filter(Product.quantity <= Product.reorder_level, Product.quantity > 0).order_by(Product.quantity.asc()).limit(20).all()
     if current_user.role == 'cashier':
-        row = db.session.query(
-            func.count(Sale.id),
-            func.coalesce(func.sum(Sale.total_amount), 0)
-        ).filter(Sale.cashier_id == current_user.id).one()
+        row = db.session.query(func.count(Sale.id), func.coalesce(func.sum(Sale.total_amount), 0)).filter(Sale.cashier_id == current_user.id).one()
         sale_count, total_revenue = int(row[0]), round(float(row[1]), 2)
-
-        today_row = db.session.query(
-            func.count(Sale.id),
-            func.coalesce(func.sum(Sale.total_amount), 0)
-        ).filter(
-            Sale.cashier_id == current_user.id,
-            func.date(Sale.sale_date) == today
-        ).one()
+        today_row = db.session.query(func.count(Sale.id), func.coalesce(func.sum(Sale.total_amount), 0)).filter(Sale.cashier_id == current_user.id, func.date(Sale.sale_date) == today).one()
     else:
-        row = db.session.query(
-            func.count(Sale.id),
-            func.coalesce(func.sum(Sale.total_amount), 0)
-        ).one()
+        row = db.session.query(func.count(Sale.id), func.coalesce(func.sum(Sale.total_amount), 0)).one()
         sale_count, total_revenue = int(row[0]), round(float(row[1]), 2)
-
-        today_row = db.session.query(
-            func.count(Sale.id),
-            func.coalesce(func.sum(Sale.total_amount), 0)
-        ).filter(func.date(Sale.sale_date) == today).one()
-
+        today_row = db.session.query(func.count(Sale.id), func.coalesce(func.sum(Sale.total_amount), 0)).filter(func.date(Sale.sale_date) == today).one()
     today_count   = int(today_row[0])
     today_revenue = round(float(today_row[1]), 2)
-
-    # ── Recent 5 sales ───────────────────────────────────────
-    recent_sales = Sale.query.order_by(
-        Sale.sale_date.desc()
-    ).limit(5).all()
-
-    # ── Last 7 days chart data ───────────────────────────────
+    recent_sales  = Sale.query.order_by(Sale.sale_date.desc()).limit(5).all()
     days_labels = []
     days_totals = []
     for i in range(6, -1, -1):
         day = today - timedelta(days=i)
-        total = db.session.query(
-            func.coalesce(func.sum(Sale.total_amount), 0)
-        ).filter(func.date(Sale.sale_date) == day).scalar()
+        total = db.session.query(func.coalesce(func.sum(Sale.total_amount), 0)).filter(func.date(Sale.sale_date) == day).scalar()
         days_labels.append(day.strftime('%d %b'))
         days_totals.append(round(float(total), 2))
-
-    # ── Monthly revenue chart data ───────────────────────────
-    monthly_rows = db.session.query(
-        func.strftime('%m-%Y', Sale.sale_date).label('month_key'),
-        func.sum(Sale.total_amount).label('revenue')
-    ).group_by('month_key').order_by('month_key').all()
-
-    def _fmt_month(mk):
-        try:
-            return datetime.strptime(mk, '%m-%Y').strftime('%b %Y')
-        except Exception:
-            return mk
-
-    monthly_data = [
-        {'month': _fmt_month(r.month_key), 'revenue': round(float(r.revenue), 2)}
-        for r in monthly_rows
-    ]
-
+    monthly_rows = db.session.query(func.strftime('%m-%Y', Sale.sale_date).label('month_key'), func.sum(Sale.total_amount).label('revenue')).group_by('month_key').order_by('month_key').all()
+    def _fmt(mk):
+        try: return datetime.strptime(mk, '%m-%Y').strftime('%b %Y')
+        except: return mk
+    monthly_data = [{'month': _fmt(r.month_key), 'revenue': round(float(r.revenue), 2)} for r in monthly_rows]
     return render_template('dashboard.html',
-        product_count      = product_count,
-        low_stock_count    = low_stock_count,
-        cat_count          = cat_count,
-        sale_count         = sale_count,
-        total_revenue      = total_revenue,
-        critical_products  = critical_products,
-        out_of_stock       = out_of_stock,
-        low_stock_products = low_stock_products,
-        today_count        = today_count,
-        today_revenue      = today_revenue,
-        recent_sales       = recent_sales,
-        days_labels        = days_labels,
-        days_totals        = days_totals,
-        monthly_data       = monthly_data,
-    )
+        product_count=product_count, low_stock_count=low_stock_count, cat_count=cat_count,
+        sale_count=sale_count, total_revenue=total_revenue,
+        critical_products=critical_products, out_of_stock=out_of_stock,
+        low_stock_products=low_stock_products, today_count=today_count,
+        today_revenue=today_revenue, recent_sales=recent_sales,
+        days_labels=days_labels, days_totals=days_totals, monthly_data=monthly_data)
 
 
 @auth.route('/logout', methods=['GET', 'POST'])
@@ -209,10 +138,9 @@ def staff():
 @admin_required
 def change_role(user_id):
     u = User.query.get_or_404(user_id)
-    new_role = request.form.get('role', 'cashier')
-    u.role = new_role
+    u.role = request.form.get('role', 'cashier')
     db.session.commit()
-    flash(f'{u.full_name} role updated to {new_role}.', 'success')
+    flash(f'{u.full_name} role updated to {u.role}.', 'success')
     return redirect(url_for('auth.staff'))
 
 
@@ -235,7 +163,6 @@ def change_password():
         current_pw = request.form.get('current_password', '')
         new_pw     = request.form.get('new_password', '')
         confirm_pw = request.form.get('confirm_password', '')
-
         if not current_user.check_password(current_pw):
             flash('Current password is incorrect.', 'error')
             return redirect(url_for('auth.change_password'))
@@ -245,10 +172,8 @@ def change_password():
         if new_pw != confirm_pw:
             flash('New passwords do not match.', 'error')
             return redirect(url_for('auth.change_password'))
-
         current_user.set_password(new_pw)
         db.session.commit()
         flash('Password updated successfully!', 'success')
         return redirect(url_for('auth.dashboard'))
-
     return render_template('staff/change_password.html')

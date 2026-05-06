@@ -4,6 +4,7 @@ from functools import wraps
 from app import db
 from app.models import User, Product, Category, Sale
 from datetime import date
+from sqlalchemy import func
 
 auth = Blueprint('auth', __name__)
 
@@ -82,69 +83,83 @@ def signup():
 @auth.route('/dashboard')
 @login_required
 def dashboard():
-    # ── Core product stats ───────────────────────────────────
+    today = date.today()
+
+    # ── Core counts — single cheap COUNT queries ─────────────
     product_count = Product.query.count()
     cat_count     = Category.query.count()
-
-    # ── CRITICAL: products with quantity < 5 ────────────────
-    critical_products = Product.query.filter(
-        Product.quantity < 5,
-        Product.quantity > 0
-    ).order_by(Product.quantity.asc()).all()
-
-    # ── OUT OF STOCK: quantity = 0 ───────────────────────────
-    out_of_stock = Product.query.filter(
-        Product.quantity == 0
-    ).order_by(Product.name).all()
-
-    # ── BELOW REORDER LEVEL ──────────────────────────────────
-    low_stock_products = Product.query.filter(
-        Product.quantity <= Product.reorder_level,
-        Product.quantity > 0
-    ).order_by(Product.quantity.asc()).all()
-
-    # ── Total low stock count for badge ─────────────────────
     low_stock_count = Product.query.filter(
         Product.quantity <= Product.reorder_level
     ).count()
 
-    # ── Sales stats based on role ────────────────────────────
-    today = date.today()
+    # ── Stock alerts — DB-filtered, no Python loops ──────────
+    critical_products = Product.query.filter(
+        Product.quantity < 5,
+        Product.quantity > 0
+    ).order_by(Product.quantity.asc()).limit(20).all()
 
+    out_of_stock = Product.query.filter(
+        Product.quantity == 0
+    ).order_by(Product.name).limit(20).all()
+
+    low_stock_products = Product.query.filter(
+        Product.quantity <= Product.reorder_level,
+        Product.quantity > 0
+    ).order_by(Product.quantity.asc()).limit(20).all()
+
+    # ── Sales stats — use SQL SUM instead of Python loops ────
+    # FIX: Previously loaded ALL sales into memory, summed in Python.
+    # Now: one aggregate query per stat — no objects loaded at all.
     if current_user.role == 'cashier':
-        my_sales      = Sale.query.filter_by(cashier_id=current_user.id).all()
-        sale_count    = len(my_sales)
-        total_revenue = round(sum(s.grand_total for s in my_sales), 2)
-        today_sales   = [s for s in my_sales
-                         if s.sale_date.date() == today]
+        # All-time stats for this cashier
+        row = db.session.query(
+            func.count(Sale.id),
+            func.coalesce(func.sum(Sale.total_amount), 0)
+        ).filter(Sale.cashier_id == current_user.id).one()
+        sale_count, total_revenue = int(row[0]), round(float(row[1]), 2)
+
+        # Today stats for this cashier
+        today_row = db.session.query(
+            func.count(Sale.id),
+            func.coalesce(func.sum(Sale.total_amount), 0)
+        ).filter(
+            Sale.cashier_id == current_user.id,
+            func.date(Sale.sale_date) == today
+        ).one()
     else:
-        all_sales     = Sale.query.all()
-        sale_count    = len(all_sales)
-        total_revenue = round(sum(s.grand_total for s in all_sales), 2)
-        today_sales   = Sale.query.filter(
-            db.func.date(Sale.sale_date) == today
-        ).all()
+        # All-time stats for all cashiers
+        row = db.session.query(
+            func.count(Sale.id),
+            func.coalesce(func.sum(Sale.total_amount), 0)
+        ).one()
+        sale_count, total_revenue = int(row[0]), round(float(row[1]), 2)
 
-    today_count   = len(today_sales)
-    today_revenue = round(sum(s.grand_total for s in today_sales), 2)
+        # Today stats for all cashiers
+        today_row = db.session.query(
+            func.count(Sale.id),
+            func.coalesce(func.sum(Sale.total_amount), 0)
+        ).filter(func.date(Sale.sale_date) == today).one()
 
-    # ── Recent 5 sales ───────────────────────────────────────
+    today_count   = int(today_row[0])
+    today_revenue = round(float(today_row[1]), 2)
+
+    # ── Recent 5 sales — lightweight, no change needed ───────
     recent_sales = Sale.query.order_by(
         Sale.sale_date.desc()
     ).limit(5).all()
 
     return render_template('dashboard.html',
-        product_count     = product_count,
-        low_stock_count   = low_stock_count,
-        cat_count         = cat_count,
-        sale_count        = sale_count,
-        total_revenue     = total_revenue,
-        critical_products = critical_products,
-        out_of_stock      = out_of_stock,
+        product_count      = product_count,
+        low_stock_count    = low_stock_count,
+        cat_count          = cat_count,
+        sale_count         = sale_count,
+        total_revenue      = total_revenue,
+        critical_products  = critical_products,
+        out_of_stock       = out_of_stock,
         low_stock_products = low_stock_products,
-        today_count       = today_count,
-        today_revenue     = today_revenue,
-        recent_sales      = recent_sales,
+        today_count        = today_count,
+        today_revenue      = today_revenue,
+        recent_sales       = recent_sales,
     )
 
 

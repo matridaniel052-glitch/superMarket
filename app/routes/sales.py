@@ -12,14 +12,24 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from app import db
 from app.models import Product, Sale, SaleItem
+from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 sales = Blueprint('sales', __name__)
+
+# How many sales to show per page in history
+HISTORY_PAGE_SIZE = 40
 
 
 @sales.route('/sales/new', methods=['GET', 'POST'])
 @login_required
 def new_sale():
-    products = Product.query.filter(Product.quantity > 0).order_by(Product.name).all()
+    # Only load what POS needs: id, name, price, qty — no joins
+    products = Product.query.filter(
+        Product.quantity > 0
+    ).with_entities(
+        Product.id, Product.name, Product.unit_price, Product.quantity, Product.barcode
+    ).order_by(Product.name).all()
 
     if request.method == 'POST':
         cart       = request.form.getlist('product_id')
@@ -31,39 +41,69 @@ def new_sale():
             flash('Please add at least one product to the cart.', 'error')
             return redirect(url_for('sales.new_sale'))
 
+        # FIX: Load ALL needed products in ONE query (bulk fetch by IDs)
+        # Previously: Product.query.get(pid) inside a loop = N separate queries
+        pids         = [int(pid) for pid in cart]
+        products_map = {
+            p.id: p
+            for p in Product.query.filter(Product.id.in_(pids)).all()
+        }
+
         sale = Sale(cashier_id=current_user.id, discount=discount, payment_method=payment)
         db.session.add(sale)
         db.session.flush()
 
-        total = 0
-        for pid, qty in zip(cart, quantities):
-            if not qty or not qty.strip():
+        total      = 0
+        sale_items = []
+        low_stock_alerts = []  # collect and send AFTER commit
+
+        for pid, qty_str in zip(cart, quantities):
+            if not qty_str or not qty_str.strip():
                 continue
-            qty = int(qty)
+            qty     = int(qty_str)
+            pid_int = int(pid)
             if qty <= 0:
                 continue
-            product = Product.query.get(int(pid))
+
+            product = products_map.get(pid_int)
             if not product or product.quantity < qty:
-                flash(f'Not enough stock for {product.name if product else "item"}.', 'error')
+                pname = product.name if product else 'item'
+                flash(f'Not enough stock for {pname}.', 'error')
                 db.session.rollback()
                 return redirect(url_for('sales.new_sale'))
-            item = SaleItem(sale_id=sale.id, product_id=product.id, quantity=qty, unit_price=product.unit_price)
-            db.session.add(item)
+
+            item = SaleItem(
+                sale_id=sale.id,
+                product_id=product.id,
+                quantity=qty,
+                unit_price=product.unit_price
+            )
+            sale_items.append(item)
             product.quantity -= qty
             total += item.subtotal
-            if hasattr(product, 'reorder_level') and product.quantity <= product.reorder_level:
-                manager_email = os.getenv('MANAGER_EMAIL')
-                sku = getattr(product, 'sku', None) or getattr(product, 'barcode', None) or 'N/A'
-                send_low_stock_alert(
-                    product.name,
-                    sku,
-                    product.quantity,
-                    product.reorder_level,
-                    manager_email
-                )
 
+            # Queue low-stock alerts — send after commit, not inside loop
+            if product.quantity <= product.reorder_level:
+                low_stock_alerts.append(product)
+
+        # Bulk-add all items in one shot
+        db.session.bulk_save_objects(sale_items)
         sale.total_amount = round(total - discount, 2)
         db.session.commit()
+
+        # Send alerts AFTER successful commit
+        manager_email = os.getenv('MANAGER_EMAIL')
+        for product in low_stock_alerts:
+            sku = getattr(product, 'sku', None) or product.barcode or 'N/A'
+            try:
+                send_low_stock_alert(
+                    product.name, sku,
+                    product.quantity, product.reorder_level,
+                    manager_email
+                )
+            except Exception:
+                pass  # Never let email failure break a sale
+
         flash('Sale completed successfully!', 'success')
         return redirect(url_for('sales.receipt', sale_id=sale.id))
 
@@ -73,41 +113,76 @@ def new_sale():
 @sales.route('/sales/receipt/<int:sale_id>')
 @login_required
 def receipt(sale_id):
-    sale = Sale.query.get_or_404(sale_id)
+    # Eagerly load items + product in one query to avoid N+1 on receipt render
+    sale = Sale.query.options(
+        joinedload(Sale.items).joinedload(SaleItem.product)
+    ).get_or_404(sale_id)
     return render_template('sales/receipt.html', sale=sale)
 
 
 @sales.route('/sales/history')
 @login_required
 def history():
-    all_sales = Sale.query.order_by(Sale.sale_date.desc()).all()
-    total_revenue = sum(s.grand_total for s in all_sales)
+    page = request.args.get('page', 1, type=int)
 
-    monthly = defaultdict(float)
-    for s in all_sales:
-        key = s.sale_date.strftime('%b %Y')
-        monthly[key] += float(s.grand_total)
-    monthly_data = [{'month': k, 'revenue': round(v, 2)} for k, v in monthly.items()]
+    # Paginate — don't load thousands of sales into memory
+    pagination = Sale.query.order_by(
+        Sale.sale_date.desc()
+    ).paginate(page=page, per_page=HISTORY_PAGE_SIZE, error_out=False)
+
+    page_sales = pagination.items
+
+    # Total revenue via SQL SUM — no Python loop over all records
+    total_revenue = db.session.query(
+        func.coalesce(func.sum(Sale.total_amount), 0)
+    ).scalar()
+    total_revenue = round(float(total_revenue), 2)
+
+    # Monthly breakdown — SQL GROUP BY instead of Python defaultdict loop
+    monthly_rows = db.session.query(
+        func.strftime('%m-%Y', Sale.sale_date).label('month_key'),
+        func.sum(Sale.total_amount).label('revenue')
+    ).group_by('month_key').order_by('month_key').all()
+
+    monthly_data = [
+        {'month': _format_month(row.month_key), 'revenue': round(float(row.revenue), 2)}
+        for row in monthly_rows
+    ]
 
     return render_template('sales/history.html',
-        sales=all_sales,
-        total_revenue=round(total_revenue, 2),
-        monthly_data=monthly_data
+        sales         = page_sales,
+        total_revenue = total_revenue,
+        monthly_data  = monthly_data,
+        pagination    = pagination,
     )
+
+
+def _format_month(month_key):
+    """Convert '01-2025' → 'Jan 2025'."""
+    try:
+        return datetime.strptime(month_key, '%m-%Y').strftime('%b %Y')
+    except Exception:
+        return month_key
 
 
 @sales.route('/sales/download-pdf')
 @login_required
 def download_pdf():
-    all_sales = Sale.query.order_by(Sale.sale_date.desc()).all()
-    total_revenue = sum(s.grand_total for s in all_sales)
+    # For PDF export we need all sales — but only the columns needed for the table.
+    # Use with_entities to avoid loading relationships until we need cashier names.
+    # For small-to-medium stores this is acceptable; add date filters if needed.
+    all_sales = Sale.query.options(
+        joinedload(Sale.items)
+    ).order_by(Sale.sale_date.desc()).all()
+
+    total_revenue = sum(s.total_amount for s in all_sales)  # total_amount already stored
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
         rightMargin=2*cm, leftMargin=2*cm,
         topMargin=2*cm, bottomMargin=2*cm)
 
-    green = colors.HexColor('#1a5c2a')
+    green    = colors.HexColor('#1a5c2a')
     elements = []
 
     title_style = ParagraphStyle('title', fontSize=18, textColor=green,

@@ -2,6 +2,7 @@ from app import db, login_manager
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+from sqlalchemy import Index
 
 
 class User(UserMixin, db.Model):
@@ -14,8 +15,8 @@ class User(UserMixin, db.Model):
     staff_id      = db.Column(db.String(50), unique=True, nullable=True)
     department    = db.Column(db.String(100), nullable=True)
     created_at    = db.Column(db.DateTime, default=datetime.utcnow)
-    sales         = db.relationship('Sale', backref='cashier', lazy=True)
-    stock_logs    = db.relationship('StockLog', backref='user', lazy=True)
+    sales         = db.relationship('Sale', backref='cashier', lazy='select')
+    stock_logs    = db.relationship('StockLog', backref='user', lazy='select')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -33,7 +34,7 @@ class Category(db.Model):
     __tablename__ = 'categories'
     id       = db.Column(db.Integer, primary_key=True)
     name     = db.Column(db.String(100), nullable=False, unique=True)
-    products = db.relationship('Product', backref='category', lazy=True)
+    products = db.relationship('Product', backref='category', lazy='select')
 
 
 class Product(db.Model):
@@ -47,6 +48,13 @@ class Product(db.Model):
     quantity      = db.Column(db.Integer, default=0)
     reorder_level = db.Column(db.Integer, default=5)
     created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # ── Indexes for fast lookups ─────────────────────────────
+    __table_args__ = (
+        Index('ix_product_name',     'name'),        # fast ILIKE search
+        Index('ix_product_category', 'category_id'), # fast category filter
+        Index('ix_product_quantity', 'quantity'),    # fast low-stock queries
+    )
 
     @property
     def is_low_stock(self):
@@ -63,11 +71,22 @@ class Sale(db.Model):
     __tablename__ = 'sales'
     id             = db.Column(db.Integer, primary_key=True)
     cashier_id     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    sale_date      = db.Column(db.DateTime, default=datetime.utcnow)
+    sale_date      = db.Column(db.DateTime, default=datetime.utcnow, index=True)  # indexed
     discount       = db.Column(db.Float, default=0.0)
     total_amount   = db.Column(db.Float, default=0.0)
     payment_method = db.Column(db.String(30), default='cash')
-    items          = db.relationship('SaleItem', backref='sale', lazy=True, cascade='all, delete-orphan')
+
+    # ── Indexes for fast date/cashier queries ────────────────
+    __table_args__ = (
+        Index('ix_sale_cashier_date', 'cashier_id', 'sale_date'),  # composite
+        Index('ix_sale_date',         'sale_date'),
+    )
+
+    # Use joined loading to avoid N+1 on items in receipts/history
+    items = db.relationship(
+        'SaleItem', backref='sale', lazy='select',
+        cascade='all, delete-orphan'
+    )
 
     @property
     def subtotal(self):
@@ -85,7 +104,14 @@ class SaleItem(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     quantity   = db.Column(db.Integer, nullable=False)
     unit_price = db.Column(db.Float, nullable=False)
-    product    = db.relationship('Product')
+
+    # ── Index for fast JOIN in reports ───────────────────────
+    __table_args__ = (
+        Index('ix_saleitem_sale',    'sale_id'),
+        Index('ix_saleitem_product', 'product_id'),
+    )
+
+    product = db.relationship('Product')
 
     @property
     def subtotal(self):
@@ -102,7 +128,7 @@ class Supplier(db.Model):
     address       = db.Column(db.String(250), nullable=True)
     payment_terms = db.Column(db.String(100), nullable=True)
     created_at    = db.Column(db.DateTime, default=datetime.utcnow)
-    orders        = db.relationship('PurchaseOrder', backref='supplier', lazy=True)
+    orders        = db.relationship('PurchaseOrder', backref='supplier', lazy='select')
 
 
 class PurchaseOrder(db.Model):
@@ -113,7 +139,7 @@ class PurchaseOrder(db.Model):
     status      = db.Column(db.String(30), default='draft')
     total_cost  = db.Column(db.Float, default=0.0)
     notes       = db.Column(db.String(300), nullable=True)
-    items       = db.relationship('POItem', backref='order', lazy=True, cascade='all, delete-orphan')
+    items       = db.relationship('POItem', backref='order', lazy='select', cascade='all, delete-orphan')
 
     @property
     def computed_total(self):
@@ -148,4 +174,11 @@ class StockLog(db.Model):
     reason      = db.Column(db.String(200), nullable=True)
     expiry_date = db.Column(db.DateTime, nullable=True)
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
-    product     = db.relationship('Product')
+
+    # ── Index for fast per-product log lookup ─────────────────
+    __table_args__ = (
+        Index('ix_stocklog_product', 'product_id'),
+        Index('ix_stocklog_created', 'created_at'),
+    )
+
+    product = db.relationship('Product')

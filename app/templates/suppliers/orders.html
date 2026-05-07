@@ -1,132 +1,762 @@
 {% extends 'base.html' %}
-{% block title %}Orders — {{ supplier.name }} — SuperMart IMS{% endblock %}
-{% block page_header %}
-<div class="page-header">
-  <h1>{{ supplier.name }}</h1>
-  <p>Purchase orders &mdash; {{ supplier.phone or '' }} &nbsp; {{ supplier.email or '' }}</p>
-</div>
-{% endblock %}
+{% block title %}Purchase Orders — {{ supplier.name }}{% endblock %}
+
 {% block extra_css %}
 <style>
-  .order-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
-  .status-draft     { background:#f3f4f6;color:#6b7280; }
-  .status-sent      { background:#eff6ff;color:#1d4ed8; }
-  .status-delivered { background:#f0fdf4;color:#15803d; }
-  .status-paid      { background:#ecfdf5;color:#065f46; }
-  .po-card { background:white; border:1px solid var(--border); border-radius:10px; padding:1rem 1.25rem; margin-bottom:1rem; }
-  .po-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; }
-  .po-title { font-weight:500; font-size:0.95rem; }
-  .po-meta { font-size:0.78rem; color:var(--muted); margin-bottom:0.75rem; }
-  .po-items-table { width:100%; font-size:0.82rem; border-collapse:collapse; }
-  .po-items-table td { padding:4px 8px; border-bottom:1px solid #f0f0f0; }
-  .po-items-table td:last-child { text-align:right; font-weight:500; }
-  .po-total { display:flex; justify-content:space-between; font-weight:600; font-size:0.9rem; margin-top:8px; padding-top:8px; border-top:1px solid var(--border); }
-  .po-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:0.75rem; }
+  /* ── Reset for full-width layout ── */
+  .page-wrapper { max-width: 100% !important; padding: 0 !important; }
+
+  :root {
+    --po-bg:      #f8f9fc;
+    --po-card:    #ffffff;
+    --po-border:  #e5e7ef;
+    --po-muted:   #8892a4;
+    --po-text:    #1a1f2e;
+    --po-primary: #2563eb;
+    --po-green:   #16a34a;
+    --po-red:     #dc2626;
+    --po-amber:   #d97706;
+    --po-sidebar: 320px;
+  }
+
+  /* ── Page shell ── */
+  .po-shell {
+    display: grid;
+    grid-template-columns: var(--po-sidebar) 1fr 380px;
+    height: calc(100vh - 64px);
+    overflow: hidden;
+    background: var(--po-bg);
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  /* ── Column 1: PO List ── */
+  .po-list-col {
+    background: var(--po-card);
+    border-right: 1px solid var(--po-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .po-list-header {
+    padding: 20px 18px 14px;
+    border-bottom: 1px solid var(--po-border);
+  }
+  .po-list-header h2 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--po-text);
+    margin-bottom: 4px;
+  }
+  .po-list-header p { font-size: 12px; color: var(--po-muted); }
+
+  .po-search {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--po-border);
+  }
+  .po-search input {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--po-border);
+    border-radius: 8px;
+    font-size: 12.5px;
+    background: var(--po-bg);
+    color: var(--po-text);
+    outline: none;
+    font-family: inherit;
+  }
+  .po-search input:focus { border-color: var(--po-primary); }
+
+  .po-list-items { overflow-y: auto; flex: 1; }
+
+  .po-item {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--po-border);
+    cursor: pointer;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .po-item:hover { background: #f1f5ff; }
+  .po-item.active { background: #eff6ff; border-left: 3px solid var(--po-primary); }
+  .po-item-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+  .po-item-id { font-size: 13px; font-weight: 700; color: var(--po-primary); font-family: 'JetBrains Mono', monospace; }
+  .po-item-amount { font-size: 13px; font-weight: 600; color: var(--po-text); }
+  .po-item-supplier { font-size: 11.5px; color: var(--po-muted); margin-bottom: 4px; }
+  .po-item-bottom { display: flex; justify-content: space-between; align-items: center; }
+  .po-item-date { font-size: 11px; color: var(--po-muted); }
+
+  .po-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: capitalize;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .badge-draft     { background: #f3f4f6; color: #6b7280; }
+  .badge-sent      { background: #dbeafe; color: #1d4ed8; }
+  .badge-delivered { background: #dcfce7; color: #15803d; }
+  .badge-paid      { background: #d1fae5; color: #065f46; }
+
+  .po-empty-list {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--po-muted);
+    font-size: 13px;
+  }
+  .po-empty-list .icon { font-size: 2rem; margin-bottom: 8px; }
+
+  /* ── Column 2: PO Detail ── */
+  .po-detail-col {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--po-bg);
+  }
+  .po-detail-topbar {
+    background: var(--po-card);
+    border-bottom: 1px solid var(--po-border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .po-detail-topbar h2 { font-size: 16px; font-weight: 700; color: var(--po-text); }
+  .po-detail-topbar p  { font-size: 12px; color: var(--po-muted); margin-top: 2px; }
+  .po-topbar-actions { display: flex; gap: 8px; }
+
+  .po-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+    transition: all 0.18s;
+  }
+  .po-btn-primary { background: var(--po-primary); color: #fff; }
+  .po-btn-primary:hover { background: #1d4ed8; }
+  .po-btn-success { background: var(--po-green); color: #fff; }
+  .po-btn-success:hover { background: #15803d; }
+  .po-btn-danger  { background: var(--po-red); color: #fff; }
+  .po-btn-danger:hover  { background: #b91c1c; }
+  .po-btn-outline {
+    background: transparent;
+    border: 1px solid var(--po-border);
+    color: var(--po-text);
+  }
+  .po-btn-outline:hover { border-color: var(--po-primary); color: var(--po-primary); }
+
+  .po-detail-body { flex: 1; overflow-y: auto; padding: 24px; }
+
+  /* Info cards */
+  .po-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .po-info-card {
+    background: var(--po-card);
+    border: 1px solid var(--po-border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .po-info-card h3 {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--po-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .po-info-card p {
+    font-size: 13.5px;
+    color: var(--po-text);
+    font-weight: 500;
+    line-height: 1.7;
+  }
+  .po-info-card .sub { font-size: 12px; color: var(--po-muted); font-weight: 400; }
+
+  /* Items table */
+  .po-items-card {
+    background: var(--po-card);
+    border: 1px solid var(--po-border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .po-items-card-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--po-border);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--po-text);
+  }
+  .po-detail-table { width: 100%; border-collapse: collapse; }
+  .po-detail-table th {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--po-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    padding: 10px 18px;
+    text-align: left;
+    background: #fafbfc;
+    border-bottom: 1px solid var(--po-border);
+  }
+  .po-detail-table td {
+    padding: 12px 18px;
+    font-size: 13px;
+    color: var(--po-text);
+    border-bottom: 1px solid var(--po-border);
+  }
+  .po-detail-table tr:last-child td { border-bottom: none; }
+  .po-detail-table td.amount { font-weight: 600; font-family: 'JetBrains Mono', monospace; text-align: right; }
+  .po-detail-table th:last-child { text-align: right; }
+
+  .po-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    background: #f8f9fc;
+    border-top: 2px solid var(--po-border);
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .po-total-row .total-amt {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--po-primary);
+    font-size: 16px;
+  }
+
+  /* Status update bar */
+  .po-status-bar {
+    background: var(--po-card);
+    border: 1px solid var(--po-border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .po-status-bar label { font-size: 12.5px; font-weight: 600; color: var(--po-text); white-space: nowrap; }
+  .po-status-bar select {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid var(--po-border);
+    border-radius: 7px;
+    font-family: inherit;
+    font-size: 13px;
+    background: var(--po-bg);
+    color: var(--po-text);
+    outline: none;
+  }
+  .po-status-bar select:focus { border-color: var(--po-primary); }
+
+  /* No selection state */
+  .po-no-selection {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--po-muted);
+    text-align: center;
+    gap: 12px;
+  }
+  .po-no-selection .big-icon { font-size: 3rem; opacity: 0.4; }
+  .po-no-selection p { font-size: 13px; }
+
+  /* ── Column 3: Create Order ── */
+  .po-create-col {
+    background: var(--po-card);
+    border-left: 1px solid var(--po-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .po-create-header {
+    padding: 20px 18px 14px;
+    border-bottom: 1px solid var(--po-border);
+  }
+  .po-create-header h2 { font-size: 15px; font-weight: 700; color: var(--po-text); margin-bottom: 3px; }
+  .po-create-header p  { font-size: 12px; color: var(--po-muted); }
+
+  .po-create-body { flex: 1; overflow-y: auto; padding: 18px; }
+
+  .po-field { margin-bottom: 12px; }
+  .po-field label { display: block; font-size: 11.5px; font-weight: 600; color: var(--po-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .po-field input, .po-field select, .po-field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--po-border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    background: var(--po-bg);
+    color: var(--po-text);
+    outline: none;
+    box-sizing: border-box;
+  }
+  .po-field input:focus, .po-field select:focus, .po-field textarea:focus {
+    border-color: var(--po-primary);
+    background: #fff;
+  }
+
+  .po-line-row {
+    display: grid;
+    grid-template-columns: 1fr 60px 80px 24px;
+    gap: 5px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .po-line-row input { padding: 7px 8px; font-size: 12px; }
+  .po-line-row select { padding: 7px 8px; font-size: 12px; }
+  .remove-btn {
+    background: none;
+    border: none;
+    color: var(--po-red);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .remove-btn:hover { background: #fee2e2; }
+  .add-line-btn {
+    font-size: 12.5px;
+    color: var(--po-primary);
+    background: #eff6ff;
+    border: 1px dashed #93c5fd;
+    border-radius: 7px;
+    padding: 7px 12px;
+    cursor: pointer;
+    width: 100%;
+    font-family: inherit;
+    font-weight: 600;
+    transition: all 0.15s;
+    margin-bottom: 12px;
+  }
+  .add-line-btn:hover { background: #dbeafe; }
+
+  .po-create-footer {
+    padding: 14px 18px;
+    border-top: 1px solid var(--po-border);
+    background: var(--po-card);
+  }
+  .po-submit-btn {
+    width: 100%;
+    padding: 11px;
+    background: var(--po-primary);
+    color: #fff;
+    border: none;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.18s;
+  }
+  .po-submit-btn:hover { background: #1d4ed8; }
+
+  /* ── Email modal ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 14px;
+    width: 520px;
+    max-width: 95vw;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.18);
+    overflow: hidden;
+    animation: modalIn 0.2s ease;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .modal-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--po-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-header h3 { font-size: 16px; font-weight: 700; color: var(--po-text); }
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: var(--po-muted);
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .modal-close:hover { background: #f3f4f6; color: var(--po-text); }
+  .modal-body { padding: 20px 24px; }
+  .modal-body .po-field { margin-bottom: 14px; }
+  .modal-body textarea { height: 120px; resize: vertical; }
+  .modal-footer {
+    padding: 14px 24px;
+    border-top: 1px solid var(--po-border);
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+  /* ── Back link ── */
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--po-muted);
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 7px;
+    transition: all 0.15s;
+    margin: 12px 18px 0;
+  }
+  .back-link:hover { background: #f3f4f6; color: var(--po-text); }
 </style>
 {% endblock %}
+
 {% block content %}
-<div style="margin-bottom:1rem;">
-  <a href="{{ url_for('suppliers.index') }}" class="btn btn-outline btn-sm">← Back to suppliers</a>
-</div>
-<div class="order-grid">
-  <!-- Left: create new order -->
-  <div>
-    <div class="card">
-      <h2 style="font-size:1rem;font-weight:500;margin-bottom:1rem;">Create new purchase order</h2>
-      <form method="POST" action="{{ url_for('suppliers.create_order', supplier_id=supplier.id) }}" id="po-form">
-        <div id="po-lines">
-          <div class="po-line" style="display:grid;grid-template-columns:2fr 80px 90px 28px;gap:6px;margin-bottom:6px;align-items:center;">
-            <select name="product_id" style="padding:7px;border:1px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.82rem;">
-              <option value="">Select product</option>
-              {% for p in products %}
-              <option value="{{ p.id }}" data-cost="{{ p.cost_price }}">{{ p.name }}</option>
-              {% endfor %}
-            </select>
-            <input type="number" name="quantity" placeholder="Qty" min="1" style="padding:7px;border:1px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.82rem;text-align:center;">
-            <input type="number" name="cost_price" placeholder="Cost" step="0.01" min="0" style="padding:7px;border:1px solid var(--border);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:0.82rem;">
-            <button type="button" onclick="removeLine(this)" style="background:none;border:none;color:#dc2626;font-size:1.1rem;cursor:pointer;">&#x2715;</button>
+<a href="{{ url_for('suppliers.index') }}" class="back-link">← Back to suppliers</a>
+
+<div class="po-shell">
+
+  <!-- ══ COL 1: PO LIST ══ -->
+  <div class="po-list-col">
+    <div class="po-list-header">
+      <h2>📋 Purchase Orders</h2>
+      <p>{{ supplier.orders | length }} order(s) for {{ supplier.name }}</p>
+    </div>
+    <div class="po-search">
+      <input type="text" id="po-search-input" placeholder="Search orders…" oninput="filterPOs(this.value)">
+    </div>
+    <div class="po-list-items" id="po-list">
+      {% if supplier.orders %}
+        {% for po in supplier.orders | sort(attribute='order_date', reverse=True) %}
+        <div class="po-item {% if loop.first %}active{% endif %}"
+             onclick="selectPO({{ po.id }}, this)"
+             data-id="{{ po.id }}"
+             data-search="po-{{ '%05d' % po.id }} {{ po.status }}">
+          <div class="po-item-top">
+            <span class="po-item-id">PO-{{ '%05d' % po.id }}</span>
+            <span class="po-item-amount">GHS {{ "%.2f" | format(po.computed_total) }}</span>
+          </div>
+          <div class="po-item-supplier">{{ supplier.name }}</div>
+          <div class="po-item-bottom">
+            <span class="po-item-date">{{ po.order_date.strftime('%d %b %Y') }}</span>
+            <span class="po-badge badge-{{ po.status }}">{{ po.status }}</span>
           </div>
         </div>
-        <button type="button" onclick="addLine()" class="btn btn-outline btn-sm" style="margin-bottom:1rem;">+ Add product line</button>
-        <div class="field">
-          <label>Notes (optional)</label>
-          <input type="text" name="notes" placeholder="e.g. Urgent delivery needed">
+        {% endfor %}
+      {% else %}
+        <div class="po-empty-list">
+          <div class="icon">📭</div>
+          No orders yet
         </div>
-        <button type="submit" class="btn btn-green" style="width:100%;">Create purchase order</button>
-      </form>
+      {% endif %}
     </div>
   </div>
 
-  <!-- Right: existing orders -->
-  <div>
-    <h2 style="font-size:1rem;font-weight:500;margin-bottom:0.75rem;">Order history ({{ supplier.orders | length }})</h2>
+  <!-- ══ COL 2: PO DETAIL ══ -->
+  <div class="po-detail-col">
     {% if supplier.orders %}
       {% for po in supplier.orders | sort(attribute='order_date', reverse=True) %}
-      <div class="po-card">
-        <div class="po-header">
-          <div class="po-title">Order #{{ po.id }}</div>
-          <span class="badge status-{{ po.status }}" style="text-transform:capitalize;">{{ po.status }}</span>
+      <div class="po-detail-panel" id="po-panel-{{ po.id }}"
+           style="display:{% if loop.first %}flex{% else %}none{% endif %};flex-direction:column;height:100%;overflow:hidden;">
+
+        <!-- Topbar -->
+        <div class="po-detail-topbar">
+          <div>
+            <h2>PO-{{ '%05d' % po.id }}
+              <span class="po-badge badge-{{ po.status }}" style="font-size:11px;margin-left:8px;">{{ po.status }}</span>
+            </h2>
+            <p>{{ po.order_date.strftime('%d %B %Y, %I:%M %p') }}{% if po.notes %} · {{ po.notes }}{% endif %}</p>
+          </div>
+          <div class="po-topbar-actions">
+            <!-- Send Mail button -->
+            {% if supplier.email %}
+            <button class="po-btn po-btn-primary"
+                    onclick="openMailModal({{ po.id }}, '{{ supplier.email }}', '{{ supplier.name }}', 'PO-{{ '%05d' % po.id }}')">
+              ✉ Send Mail
+            </button>
+            {% else %}
+            <button class="po-btn po-btn-outline" title="No email on file for this supplier" disabled style="opacity:0.5;cursor:not-allowed;">
+              ✉ No Email on File
+            </button>
+            {% endif %}
+            <!-- Delete -->
+            <form method="POST" action="{{ url_for('suppliers.delete_order', order_id=po.id) }}"
+                  onsubmit="return confirm('Delete PO-{{ '%05d' % po.id }}?')" style="display:inline;">
+              <button type="submit" class="po-btn po-btn-danger">🗑 Delete</button>
+            </form>
+          </div>
         </div>
-        <div class="po-meta">{{ po.order_date.strftime('%d %b %Y, %I:%M %p') }}{% if po.notes %} &mdash; {{ po.notes }}{% endif %}</div>
-        <table class="po-items-table">
-          {% for item in po.items %}
-          <tr>
-            <td>{{ item.product.name }}</td>
-            <td style="color:var(--muted);">x{{ item.quantity }}</td>
-            <td>GHS {{ "%.2f" | format(item.subtotal) }}</td>
-          </tr>
-          {% endfor %}
-        </table>
-        <div class="po-total"><span>Total</span><span>GHS {{ "%.2f" | format(po.computed_total) }}</span></div>
-        <div class="po-actions">
-          {% if po.status != 'delivered' and po.status != 'paid' %}
-          <form method="POST" action="{{ url_for('suppliers.update_status', order_id=po.id) }}" style="display:inline;">
-            <select name="status" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;font-family:'DM Sans',sans-serif;">
-              <option value="draft" {% if po.status=='draft' %}selected{% endif %}>Draft</option>
-              <option value="sent" {% if po.status=='sent' %}selected{% endif %}>Sent</option>
-              <option value="delivered" {% if po.status=='delivered' %}selected{% endif %}>Delivered</option>
-              <option value="paid" {% if po.status=='paid' %}selected{% endif %}>Paid</option>
-            </select>
-            <button type="submit" class="btn btn-outline btn-sm">Update</button>
-          </form>
+
+        <!-- Detail body -->
+        <div class="po-detail-body">
+          <!-- Info grid -->
+          <div class="po-info-grid">
+            <div class="po-info-card">
+              <h3>🏭 Supplier Details</h3>
+              <p>{{ supplier.name }}</p>
+              <p class="sub">{{ supplier.address or '—' }}</p>
+              <p class="sub">📞 {{ supplier.phone or '—' }}</p>
+              <p class="sub">✉ {{ supplier.email or '—' }}</p>
+            </div>
+            <div class="po-info-card">
+              <h3>📄 Order Details</h3>
+              <p>Order Date: {{ po.order_date.strftime('%d %b %Y') }}</p>
+              <p class="sub">Payment Terms: {{ supplier.payment_terms or '—' }}</p>
+              <p class="sub">Items: {{ po.items | length }} line(s)</p>
+              <p class="sub">Created By: Staff</p>
+            </div>
+          </div>
+
+          <!-- Items table -->
+          <div class="po-items-card">
+            <div class="po-items-card-header">Order Items</div>
+            <table class="po-detail-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Qty</th>
+                  <th>Unit Cost</th>
+                  <th>Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in po.items %}
+                <tr>
+                  <td>{{ item.product.name }}</td>
+                  <td>{{ item.quantity }}</td>
+                  <td>GHS {{ "%.2f" | format(item.cost_price) }}</td>
+                  <td class="amount">GHS {{ "%.2f" | format(item.subtotal) }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <div class="po-total-row">
+              <span>Total Amount</span>
+              <span class="total-amt">GHS {{ "%.2f" | format(po.computed_total) }}</span>
+            </div>
+          </div>
+
+          <!-- Status update -->
+          {% if po.status not in ['delivered', 'paid'] %}
+          <div class="po-status-bar">
+            <label>Update Status:</label>
+            <form method="POST" action="{{ url_for('suppliers.update_status', order_id=po.id) }}"
+                  style="display:flex;gap:8px;flex:1;align-items:center;">
+              <select name="status" style="flex:1;">
+                <option value="draft"     {% if po.status=='draft' %}selected{% endif %}>Draft</option>
+                <option value="sent"      {% if po.status=='sent' %}selected{% endif %}>Sent</option>
+                <option value="delivered" {% if po.status=='delivered' %}selected{% endif %}>Delivered</option>
+                <option value="paid"      {% if po.status=='paid' %}selected{% endif %}>Paid</option>
+              </select>
+              <button type="submit" class="po-btn po-btn-success" style="padding:7px 14px;font-size:12.5px;">
+                Update
+              </button>
+            </form>
+          </div>
           {% else %}
-          <span style="font-size:0.78rem;color:var(--success);">&#10003; Stock updated on delivery</span>
+          <div class="po-status-bar" style="background:#f0fdf4;border-color:#86efac;">
+            <span style="color:#15803d;font-size:13px;font-weight:600;">
+              ✅ Stock updated on delivery — order complete
+            </span>
+          </div>
           {% endif %}
-          <form method="POST" action="{{ url_for('suppliers.delete_order', order_id=po.id) }}" style="display:inline;" onsubmit="return confirm('Delete order #{{ po.id }}?')">
-            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-          </form>
         </div>
       </div>
       {% endfor %}
+
     {% else %}
-    <div style="text-align:center;color:var(--muted);padding:2rem;background:white;border:1px solid var(--border);border-radius:10px;">
-      <div style="font-size:1.5rem;margin-bottom:0.5rem;">📋</div>
-      No orders yet for this supplier.
-    </div>
+      <!-- No orders at all -->
+      <div class="po-no-selection" style="height:100%;">
+        <div class="big-icon">📋</div>
+        <p>No purchase orders yet.<br>Create one using the form →</p>
+      </div>
     {% endif %}
+  </div>
+
+  <!-- ══ COL 3: CREATE ORDER ══ -->
+  <div class="po-create-col">
+    <div class="po-create-header">
+      <h2>＋ New Purchase Order</h2>
+      <p>{{ supplier.name }}</p>
+    </div>
+    <div class="po-create-body">
+      <form method="POST" action="{{ url_for('suppliers.create_order', supplier_id=supplier.id) }}" id="po-form">
+
+        <div class="po-field">
+          <label>Product Lines</label>
+          <div style="display:grid;grid-template-columns:1fr 60px 80px 24px;gap:5px;margin-bottom:4px;">
+            <span style="font-size:10px;color:var(--po-muted);font-weight:600;">PRODUCT</span>
+            <span style="font-size:10px;color:var(--po-muted);font-weight:600;">QTY</span>
+            <span style="font-size:10px;color:var(--po-muted);font-weight:600;">COST</span>
+            <span></span>
+          </div>
+          <div id="po-lines">
+            <div class="po-line-row">
+              <select name="product_id">
+                <option value="">Select product</option>
+                {% for p in products %}
+                <option value="{{ p.id }}" data-cost="{{ p.cost_price }}">{{ p.name }}</option>
+                {% endfor %}
+              </select>
+              <input type="number" name="quantity" placeholder="Qty" min="1">
+              <input type="number" name="cost_price" placeholder="Cost" step="0.01" min="0">
+              <button type="button" class="remove-btn" onclick="removeLine(this)">✕</button>
+            </div>
+          </div>
+          <button type="button" class="add-line-btn" onclick="addLine()">＋ Add product line</button>
+        </div>
+
+        <div class="po-field">
+          <label>Notes (optional)</label>
+          <textarea name="notes" placeholder="e.g. Urgent delivery needed, specific packaging…" rows="3"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="po-create-footer">
+      <button type="submit" form="po-form" class="po-submit-btn">
+        Create Purchase Order
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ EMAIL MODAL ══ -->
+<div class="modal-overlay" id="mail-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>✉ Send Purchase Order by Email</h3>
+      <button class="modal-close" onclick="closeMailModal()">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('suppliers.send_order_email') }}">
+      <div class="modal-body">
+        <input type="hidden" name="order_id" id="modal-order-id">
+        <div class="po-field">
+          <label>To (Supplier Email)</label>
+          <input type="email" name="to_email" id="modal-to-email" required>
+        </div>
+        <div class="po-field">
+          <label>Subject</label>
+          <input type="text" name="subject" id="modal-subject" required>
+        </div>
+        <div class="po-field">
+          <label>Message</label>
+          <textarea name="message" id="modal-message" required></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="po-btn po-btn-outline" onclick="closeMailModal()">Cancel</button>
+        <button type="submit" class="po-btn po-btn-primary">✉ Send Email</button>
+      </div>
+    </form>
   </div>
 </div>
 
 <script>
-function addLine() {
-  var container = document.getElementById('po-lines');
-  var first = container.querySelector('.po-line');
-  var clone = first.cloneNode(true);
-  clone.querySelectorAll('input').forEach(function(i){ i.value=''; });
-  clone.querySelector('select').selectedIndex = 0;
-  container.appendChild(clone);
-}
-function removeLine(btn) {
-  var lines = document.querySelectorAll('.po-line');
-  if (lines.length > 1) btn.closest('.po-line').remove();
-}
-document.getElementById('po-form').addEventListener('change', function(e) {
-  if (e.target.tagName === 'SELECT' && e.target.name === 'product_id') {
-    var opt = e.target.options[e.target.selectedIndex];
-    var cost = opt.getAttribute('data-cost');
-    var row = e.target.closest('.po-line');
-    if (cost) row.querySelector('input[name="cost_price"]').value = cost;
+  // ── PO selection ──────────────────────────────────────
+  function selectPO(id, el) {
+    document.querySelectorAll('.po-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.po-detail-panel').forEach(p => p.style.display = 'none');
+    const panel = document.getElementById('po-panel-' + id);
+    if (panel) panel.style.display = 'flex';
   }
-});
+
+  // ── Search/filter POs ─────────────────────────────────
+  function filterPOs(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('.po-item').forEach(item => {
+      const txt = item.getAttribute('data-search').toLowerCase();
+      item.style.display = txt.includes(q) ? '' : 'none';
+    });
+  }
+
+  // ── Product line management ───────────────────────────
+  function addLine() {
+    const container = document.getElementById('po-lines');
+    const first = container.querySelector('.po-line-row');
+    const clone = first.cloneNode(true);
+    clone.querySelectorAll('input').forEach(i => i.value = '');
+    clone.querySelector('select').selectedIndex = 0;
+    container.appendChild(clone);
+  }
+
+  function removeLine(btn) {
+    const lines = document.querySelectorAll('.po-line-row');
+    if (lines.length > 1) btn.closest('.po-line-row').remove();
+  }
+
+  // Auto-fill cost price when product selected
+  document.getElementById('po-lines').addEventListener('change', function(e) {
+    if (e.target.name === 'product_id') {
+      const opt  = e.target.options[e.target.selectedIndex];
+      const cost = opt.getAttribute('data-cost');
+      const row  = e.target.closest('.po-line-row');
+      if (cost) row.querySelector('input[name="cost_price"]').value = parseFloat(cost).toFixed(2);
+    }
+  });
+
+  // ── Email modal ───────────────────────────────────────
+  function openMailModal(orderId, email, supplierName, poRef) {
+    document.getElementById('modal-order-id').value  = orderId;
+    document.getElementById('modal-to-email').value  = email;
+    document.getElementById('modal-subject').value   =
+      'Purchase Order ' + poRef + ' — SuperMart IMS';
+    document.getElementById('modal-message').value   =
+      'Dear ' + supplierName + ',\n\n' +
+      'Please find attached our purchase order ' + poRef + '.\n\n' +
+      'Kindly confirm receipt and expected delivery date.\n\n' +
+      'Thank you,\nSuperMart IMS';
+    document.getElementById('mail-modal').classList.add('open');
+  }
+
+  function closeMailModal() {
+    document.getElementById('mail-modal').classList.remove('open');
+  }
+
+  // Close modal on overlay click
+  document.getElementById('mail-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeMailModal();
+  });
 </script>
 {% endblock %}

@@ -200,7 +200,7 @@ def send_order_email():
     """
 
     # ── Send via SMTP ────────────────────────────────────────
-    smtp_host = os.getenv('MAIL_SERVER',   'smtp.gmail.com')
+    smtp_host = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
     smtp_port = int(os.getenv('MAIL_PORT', 587))
     smtp_user = os.getenv('EMAIL_USER', '')
     smtp_pass = os.getenv('EMAIL_PASS', '')

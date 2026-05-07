@@ -202,9 +202,9 @@ def send_order_email():
     # ── Send via SMTP ────────────────────────────────────────
     smtp_host = os.getenv('MAIL_SERVER',   'smtp.gmail.com')
     smtp_port = int(os.getenv('MAIL_PORT', 587))
-    smtp_user = os.getenv('MAIL_USERNAME', '')
-    smtp_pass = os.getenv('MAIL_PASSWORD', '')
-    from_addr = os.getenv('MAIL_FROM',     smtp_user)
+    smtp_user = os.getenv('EMAIL_USER', '')
+    smtp_pass = os.getenv('EMAIL_PASS', '')
+    from_addr = os.getenv('EMAIL_USER',     smtp_user)
 
     if not smtp_user or not smtp_pass:
         flash('Email not configured. Add MAIL_USERNAME and MAIL_PASSWORD to your environment variables.', 'error')

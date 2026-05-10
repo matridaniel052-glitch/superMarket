@@ -167,7 +167,7 @@ def send_order_email():
     html_body = f"""
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
       <div style="background:#2563eb;padding:24px;border-radius:10px 10px 0 0;">
-        <h1 style="color:#fff;margin:0;font-size:20px;">SuperMart IMS</h1>
+        <h1 style="color:#fff;margin:0;font-size:20px;">Matri-Link IMS</h1>
         <p style="color:#bfdbfe;margin:4px 0 0;font-size:13px;">Purchase Order Notification</p>
       </div>
       <div style="background:#fff;padding:24px;border:1px solid #e5e7ef;">
@@ -188,19 +188,19 @@ def send_order_email():
         </table>
       </div>
       <div style="background:#f8f9fc;padding:14px 24px;border:1px solid #e5e7ef;border-radius:0 0 10px 10px;">
-        <p style="font-size:11px;color:#9ca3af;margin:0;">Sent by SuperMart IMS &middot; {current_user.full_name}</p>
+        <p style="font-size:11px;color:#9ca3af;margin:0;">Sent by Matri-Link IMS &middot; {current_user.full_name}</p>
       </div>
     </div>"""
 
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
-        msg['From']    = f'SuperMart IMS <{from_addr}>'
+        msg['From']    = f'Matri-Link IMS <{from_addr}>'
         msg['To']      = to_email
         msg.attach(MIMEText(message,   'plain'))
         msg.attach(MIMEText(html_body, 'html'))
 
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=25) as server:
             server.ehlo()
             server.starttls()
             server.login(smtp_user, smtp_pass)

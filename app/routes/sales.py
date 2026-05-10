@@ -190,7 +190,7 @@ def download_pdf():
     sub_style = ParagraphStyle('sub', fontSize=10, textColor=colors.grey,
         fontName='Helvetica', spaceAfter=16)
 
-    elements.append(Paragraph("SuperMart IMS — Sales History Report", title_style))
+    elements.append(Paragraph("Matri-Link IMS — Sales History Report", title_style))
     elements.append(Paragraph(
         f"Generated: {datetime.now().strftime('%d %B %Y, %I:%M %p')}  |  "
         f"Total Revenue: GHS {total_revenue:.2f}  |  Transactions: {len(all_sales)}",

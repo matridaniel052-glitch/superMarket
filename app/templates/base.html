@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}SuperMart IMS{% endblock %}</title>
+<title>{% block title %}Matri-Link IMS{% endblock %}</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -121,7 +121,7 @@
 <body>
 
 <nav>
-  <a href="{{ url_for('auth.dashboard') }}" class="nav-brand">SuperMart IMS</a>
+  <a href="{{ url_for('auth.dashboard') }}" class="nav-brand">Matri-Link IMS</a>
   <div class="nav-links">
     <a href="{{ url_for('auth.dashboard') }}" {% if request.endpoint == 'auth.dashboard' %}class="active"{% endif %}>Dashboard</a>
     <a href="{{ url_for('sales.new_sale') }}" {% if request.endpoint == 'sales.new_sale' %}class="active"{% endif %}>New sale</a>

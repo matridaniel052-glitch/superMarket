@@ -1,13 +1,15 @@
 # email_config.py
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 EMAIL_CONFIG = {
-    'EMAIL_BACKEND': 'django.core.mail.backends.smtp.EmailBackend',
     'EMAIL_HOST': 'smtp.gmail.com',
     'EMAIL_PORT': 587,
     'EMAIL_USE_TLS': True,
-    'EMAIL_HOST_USER': os.environ.get('SUPERMART_EMAIL', 'your_gmail@gmail.com'),
-    'EMAIL_HOST_PASSWORD': os.environ.get('SUPERMART_EMAIL_PASSWORD', 'your_app_password_here'),
-    'DEFAULT_FROM_EMAIL': 'SuperMart IMS <your_gmail@gmail.com>',
-    'ALERT_RECIPIENT_EMAIL': 'your_gmail@gmail.com',  # where alerts get sent to
+    'EMAIL_HOST_USER': os.getenv('EMAIL_USER'),
+    'EMAIL_HOST_PASSWORD': os.getenv('EMAIL_PASS'),
+    'DEFAULT_FROM_EMAIL': f"Matri-Link IMS <{os.getenv('EMAIL_USER')}>",
+    'ALERT_RECIPIENT_EMAIL': os.getenv('MANAGER_EMAIL'),
 }

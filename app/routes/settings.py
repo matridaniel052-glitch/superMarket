@@ -28,7 +28,7 @@ def save():
     section = request.form.get('section')
 
     if section == 'store':
-        config['store_name']    = request.form.get('store_name', 'SuperMart')
+        config['store_name']    = request.form.get('store_name', 'matri-link')
         config['store_phone']   = request.form.get('store_phone', '')
         config['store_email']   = request.form.get('store_email', '')
         config['store_address'] = request.form.get('store_address', '')

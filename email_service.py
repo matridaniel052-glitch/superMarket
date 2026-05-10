@@ -1,17 +1,35 @@
-import yagmail
+import smtplib
+import ssl
 import os
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from dotenv import load_dotenv
+from email_config import EMAIL_CONFIG
 
 load_dotenv()
 
-MAIL_USERNAME = os.getenv('EMAIL_USER')
-MAIL_PASSWORD = os.getenv('EMAIL_PASS')
-MANAGER_EMAIL = os.getenv('MANAGER_EMAIL')
+MAIL_SERVER   = EMAIL_CONFIG['EMAIL_HOST']
+MAIL_PORT     = EMAIL_CONFIG['EMAIL_PORT']
+MAIL_USERNAME = EMAIL_CONFIG['EMAIL_HOST_USER']
+MAIL_PASSWORD = EMAIL_CONFIG['EMAIL_HOST_PASSWORD']
+MANAGER_EMAIL = EMAIL_CONFIG['ALERT_RECIPIENT_EMAIL']
 
 def send_email(to, subject, html_body):
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From']    = EMAIL_CONFIG['DEFAULT_FROM_EMAIL']
+    msg['To']      = to
+    msg.attach(MIMEText(html_body, 'html'))
     try:
-        yag = yagmail.SMTP(MAIL_USERNAME, MAIL_PASSWORD)
-        yag.send(to=to, subject=subject, contents=html_body)
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        with smtplib.SMTP(MAIL_SERVER, MAIL_PORT) as s:
+            s.ehlo()
+            s.starttls(context=context)
+            s.ehlo()
+            s.login(MAIL_USERNAME, MAIL_PASSWORD)
+            s.sendmail(MAIL_USERNAME, to, msg.as_string())
         return True
     except Exception as e:
         print(f"Email error: {e}")
@@ -20,7 +38,7 @@ def send_email(to, subject, html_body):
 def send_low_stock_alert(product_name, sku, qty, level, manager_email):
     subject = f"⚠️ Low Stock Alert: {product_name}"
     body = f"""
-    <h2 style="color:#c0392b;">Low Stock Alert — SuperMart IMS</h2>
+    <h2 style="color:#c0392b;">Low Stock Alert — Matri-Link IMS</h2>
     <p>The following product needs immediate restocking:</p>
     <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
       <tr style="background:#f8d7da;"><td><b>Product</b></td><td>{product_name}</td></tr>
@@ -36,7 +54,7 @@ def send_low_stock_alert(product_name, sku, qty, level, manager_email):
 def send_out_of_stock_alert(product_name, sku, manager_email):
     subject = f"🚨 OUT OF STOCK: {product_name}"
     body = f"""
-    <h2 style="color:#c0392b;">OUT OF STOCK — SuperMart IMS</h2>
+    <h2 style="color:#c0392b;">OUT OF STOCK — Matri-Link IMS</h2>
     <p><b>{product_name}</b> (Barcode: {sku}) is completely out of stock!</p>
     <p style="color:red;"><b>Immediate action required.</b></p>
     """
@@ -58,7 +76,7 @@ def send_sale_receipt(customer_email, items, total, sale_id):
     return send_email(customer_email, f"Your Receipt - Sale #{sale_id}", body)
 
 def send_daily_report(manager_email, total_sales, total_revenue, low_stock_count):
-    subject = "📊 Daily Sales Report - SuperMart IMS"
+    subject = "📊 Daily Sales Report - Matri-Link IMS"
     body = f"""
     <h2>Daily Sales Summary</h2>
     <table border="1" cellpadding="8" cellspacing="0">
